@@ -1814,6 +1814,138 @@ const FIELD_DEFS: { key: string; label: string; required?: boolean; typeHint: st
   { key: 'condition_notes', label: '决议条件说明', typeHint: '多行文本（可选）' },
 ]
 
+// 工作流状态分类 → 展示文案
+const STATUS_CATEGORY_LABELS: Record<string, string> = {
+  to_do: '待办',
+  in_progress: '进行中',
+  done: '完成',
+}
+
+// 行内过滤下拉（输入框 + 限高下拉列表）：字段/状态映射选择用。
+// 不用原生 <select>（长选项会把 macOS 弹层撑满全屏）和 <datalist>（浮层交互怪异）。
+const MapDropdown: React.FC<{
+  text: string
+  options: { id: string; name: string; hint?: string }[]
+  placeholder?: string
+  disabled?: boolean
+  style?: React.CSSProperties
+  clearLabel?: string
+  onChangeText: (text: string) => void
+  onPick: (opt: { id: string; name: string; hint?: string }) => void
+}> = ({ text, options, placeholder, disabled, style, clearLabel, onChangeText, onPick }) => {
+  const [open, setOpen] = useState(false)
+  const ref = React.useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [open])
+
+  const kw = text.trim().toLowerCase()
+  const filtered = kw
+    ? options.filter((o) => o.name.toLowerCase().includes(kw) || o.id.toLowerCase() === kw)
+    : options
+  // 上限 100 项：965 个字段全渲染无意义且卡顿，靠关键字过滤定位
+  const shown = filtered.slice(0, 100)
+
+  return (
+    <div ref={ref} style={{ position: 'relative', ...(style || {}) }}>
+      <input
+        style={S.input}
+        value={text}
+        disabled={disabled}
+        placeholder={placeholder}
+        onChange={(e) => {
+          onChangeText(e.target.value)
+          setOpen(true)
+        }}
+        onFocus={() => setOpen(true)}
+      />
+      {open && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 34,
+            left: 0,
+            right: 0,
+            background: '#fff',
+            border: '1px solid #d9d9d9',
+            borderRadius: 4,
+            maxHeight: 220,
+            overflow: 'auto',
+            zIndex: 100,
+            boxShadow: '0 2px 8px rgba(0,0,0,.15)',
+          }}
+        >
+          {clearLabel && (
+            <div
+              onClick={() => {
+                onPick({ id: '', name: '' })
+                setOpen(false)
+              }}
+              style={{ padding: '6px 12px', cursor: 'pointer', fontSize: 13, color: '#999' }}
+            >
+              {clearLabel}
+            </div>
+          )}
+          {shown.length === 0 && (
+            <div style={{ padding: 8, color: '#999', fontSize: 12 }}>
+              无匹配项{options.length > 0 ? '，输入关键字过滤' : ''}
+            </div>
+          )}
+          {shown.map((o) => {
+            const sel = o.name === text
+            return (
+              <div
+                key={o.id}
+                onClick={() => {
+                  onPick(o)
+                  setOpen(false)
+                }}
+                style={{
+                  padding: '6px 12px',
+                  cursor: 'pointer',
+                  fontSize: 13,
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 8,
+                  background: sel ? '#e6f4ff' : 'transparent',
+                  color: sel ? '#1677ff' : '#333',
+                }}
+                onMouseEnter={(e) => {
+                  if (!sel) e.currentTarget.style.background = '#f5f5f5'
+                }}
+                onMouseLeave={(e) => {
+                  if (!sel) e.currentTarget.style.background = 'transparent'
+                }}
+              >
+                <span
+                  style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                >
+                  {o.name}
+                </span>
+                {o.hint && (
+                  <span style={{ color: '#999', fontSize: 11, flexShrink: 0 }}>{o.hint}</span>
+                )}
+              </div>
+            )
+          })}
+          {filtered.length > shown.length && (
+            <div style={{ padding: 8, color: '#999', fontSize: 12 }}>
+              仅显示前 {shown.length} 项（共 {filtered.length} 项），输入关键字过滤…
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 const IssueMappingSettings: React.FC<{
   issueType: string
   issueTypeUuid: string
@@ -1952,6 +2084,9 @@ const IssueMappingSettings: React.FC<{
     if (!fieldNames.has(f.name)) fieldNames.set(f.name, f.id)
     fieldMeta.set(f.name, { typeLabel: f.typeLabel, options: f.options })
   }
+  // 状态 uuid → 名称（映射值回显用；存的是 uuid，显示用名称）
+  const statusNameByUuid = new Map<string, string>()
+  for (const st of options?.issueStatuses || []) statusNameByUuid.set(st.id, st.name)
 
   const updateFieldBinding = (key: string, name: string) => {
     const next = { ...parsedFieldMap }
@@ -2220,19 +2355,19 @@ const IssueMappingSettings: React.FC<{
                   {def.required ? <span style={{ color: '#cf1322' }}>* </span> : null}
                   {def.label}
                 </div>
-                <input
-                  style={{ ...S.input, flex: '1 1 220px' }}
-                  list={`ipd-fm-${def.key}`}
-                  value={binding.name}
+                <MapDropdown
+                  style={{ flex: '1 1 220px' }}
+                  text={binding.name}
+                  options={(options?.issueFields || []).map((f) => ({
+                    id: f.id,
+                    name: f.name,
+                    hint: f.typeLabel,
+                  }))}
                   disabled={!editing}
-                  onChange={(e) => updateFieldBinding(def.key, e.target.value)}
                   placeholder={`工作项上的字段名（默认：${def.label}）`}
+                  onChangeText={(t) => updateFieldBinding(def.key, t)}
+                  onPick={(o) => updateFieldBinding(def.key, o.name)}
                 />
-                <datalist id={`ipd-fm-${def.key}`}>
-                  {(options?.issueFields || []).map((f) => (
-                    <option key={f.id} value={f.name} />
-                  ))}
-                </datalist>
                 <span style={{ fontSize: 11, color: '#999', flex: '1 1 160px' }}>
                   {def.typeHint}
                   {matched
@@ -2274,20 +2409,23 @@ const IssueMappingSettings: React.FC<{
                 {s.label}
               </div>
               {options && options.issueStatuses.length > 0 ? (
-                <select
-                  style={{ ...S.input, flex: '1 1 220px' }}
-                  value={parsedMap[s.key] || ''}
+                <MapDropdown
+                  style={{ flex: '1 1 220px' }}
+                  text={(() => {
+                    const v = parsedMap[s.key] || ''
+                    return statusNameByUuid.get(v) || v
+                  })()}
+                  options={options.issueStatuses.map((st) => ({
+                    id: st.id,
+                    name: st.name,
+                    hint: st.category ? STATUS_CATEGORY_LABELS[st.category] || st.category : '',
+                  }))}
                   disabled={!editing}
-                  onChange={(e) => setStatusBinding(s.key, e.target.value)}
-                >
-                  <option value="">未映射</option>
-                  {options.issueStatuses.map((st) => (
-                    <option key={st.id} value={st.id}>
-                      {st.name}
-                      {st.category ? `（${st.category}）` : ''}
-                    </option>
-                  ))}
-                </select>
+                  placeholder="未映射"
+                  clearLabel="清除映射"
+                  onChangeText={(t) => setStatusBinding(s.key, t.trim())}
+                  onPick={(o) => setStatusBinding(s.key, o.id)}
+                />
               ) : (
                 <input
                   style={{ ...S.input, flex: '1 1 220px', fontFamily: 'monospace', fontSize: 12 }}

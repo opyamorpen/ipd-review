@@ -4,7 +4,7 @@ service:
   description: >-
     团队级DCP/TR评审插件（新架构）。评审单主体由系统自定义工作项承载：原生工作项详情页 +
     插件自定义Tab呈现评审过程，插件承载评审/审批全过程（会签、决议规则、门禁、不可覆盖快照），TaskEventHandler 守卫流转。
-  version: 1.0.5
+  version: 1.0.6
   mode: org
   logo: null
   language: nodejs
