@@ -1,5 +1,5 @@
 // ============================================================
-// DCP 评审中心 v1.6.5 — Backend
+// IPD评审 v1.6.5 — Backend
 //
 // Changelog since v1.6.4:
 // - Fixed "新建工作项" redirect: use parent window projectUuid instead of stored value
@@ -14,24 +14,24 @@ import { Notify, NotifyWay } from '@ones-op/node-ability'
 // ============================================================
 // 实体引用
 // ============================================================
-const baseCfg = storage.entity('dcp_base_config')
-const phaseTpl = storage.entity('dcp_phase_template')
-const matTpl = storage.entity('dcp_material_template')
-const indTpl = storage.entity('dcp_indicator_template')
-const roleTpl = storage.entity('dcp_reviewer_role')
-const review = storage.entity('dcp_review')
-const matItem = storage.entity('dcp_review_material')
-const indData = storage.entity('dcp_review_indicator')
-const rvReviewer = storage.entity('dcp_review_reviewer')
-const linkedIssue = storage.entity('dcp_linked_issue')
-const resolution = storage.entity('dcp_resolution')
-const supplement = storage.entity('dcp_supplement')
-const auditLog = storage.entity('dcp_audit_log')
-const checkItem = storage.entity('dcp_checklist_item')
-const checkResult = storage.entity('dcp_checklist_result')
-const reviewerProfile = storage.entity('dcp_reviewer_profile')
-const projectBinding = storage.entity('dcp_project_binding')
-const phaseGuard = storage.entity('dcp_phase_guard')
+const baseCfg = storage.entity('ipd_base_config')
+const phaseTpl = storage.entity('ipd_phase_template')
+const matTpl = storage.entity('ipd_material_template')
+const indTpl = storage.entity('ipd_indicator_template')
+const roleTpl = storage.entity('ipd_reviewer_role')
+const review = storage.entity('ipd_review')
+const matItem = storage.entity('ipd_review_material')
+const indData = storage.entity('ipd_review_indicator')
+const rvReviewer = storage.entity('ipd_review_reviewer')
+const linkedIssue = storage.entity('ipd_linked_issue')
+const resolution = storage.entity('ipd_resolution')
+const supplement = storage.entity('ipd_supplement')
+const auditLog = storage.entity('ipd_audit_log')
+const checkItem = storage.entity('ipd_checklist_item')
+const checkResult = storage.entity('ipd_checklist_result')
+const reviewerProfile = storage.entity('ipd_reviewer_profile')
+const projectBinding = storage.entity('ipd_project_binding')
+const phaseGuard = storage.entity('ipd_phase_guard')
 
 const ALL_ENTITIES = [matItem, indData, rvReviewer, linkedIssue, resolution, supplement, auditLog, phaseGuard]
 
@@ -326,11 +326,11 @@ async function sendNotification(
         MessageBody: [{ Body: body, Url: url }],
       })
       result.succeeded.push(key)
-      Logger.info(`[DCP] Notification sent: ${key} to ${toUsers.length} users`)
+      Logger.info(`[IPD] Notification sent: ${key} to ${toUsers.length} users`)
     } catch (e: any) {
       const errMsg = e?.message || e?.msg || (typeof e === 'string' ? e : JSON.stringify(e))
       result.failed.push({ channel: key, error: errMsg })
-      Logger.error(`[DCP] Notification failed (${key}):`, errMsg)
+      Logger.error(`[IPD] Notification failed (${key}):`, errMsg)
     }
   }
   return result
@@ -357,7 +357,7 @@ function getParam(req: any, name: string): string {
   // 匹配 /{name}/{value}（如 /review_uuid/xxx）
   const named = url.match(new RegExp(`/${name}/([^/]+)`))
   if (named) return named[1]
-  // review_uuid 出现在 /dcp/review/{uuid} 或 /dcp/review/{uuid}/子路径
+  // review_uuid 出现在 /ipd/review/{uuid} 或 /ipd/review/{uuid}/子路径
   if (name === 'review_uuid') {
     const rv = url.match(/\/dcp\/review\/([^/]+)/)
     if (rv) return rv[1]
@@ -379,7 +379,7 @@ function getParam(req: any, name: string): string {
   }
   // review_type 只从 params/query 取，不走路径兜底（否则会误匹配 URL 末尾段）
   if (name === 'review_type') return ''
-  // 最后一个兜底：匹配路径末尾段（如 /dcp/review/{value} 无子路径时）
+  // 最后一个兜底：匹配路径末尾段（如 /ipd/review/{value} 无子路径时）
   const last = url.match(/\/([^/]+)\/?$/)
   if (last && last[1] !== name) return last[1]
   return ''
@@ -409,7 +409,7 @@ function getOperator(req: any): string {
   return Array.isArray(raw) ? String(raw[0] || '').trim() : String(raw).trim()
 }
 
-type PluginPermission = 'dcp_admin' | 'dcp_create_review' | 'dcp_view_review'
+type PluginPermission = 'ipd_admin' | 'ipd_create_review' | 'ipd_view_review'
 type ApiPolicy =
   | 'identity'
   | 'admin'
@@ -494,7 +494,7 @@ function logAuthorizationDenied(req: any, code: string, policy: ApiPolicy, detai
   const path = String(req?.url || req?.path || '').split('?')[0].slice(0, 200)
   const operator = getOperator(req) || 'anonymous'
   const teamUUID = getParam(req, 'team_uuid') || getParam(req, 'teamUUID') || ''
-  Logger.info(`[DCP][AUTHZ_DENY] code=${code}, policy=${policy}, operator=${operator}, team=${teamUUID}, path=${path}${detail ? `, detail=${detail}` : ''}`)
+  Logger.info(`[IPD][AUTHZ_DENY] code=${code}, policy=${policy}, operator=${operator}, team=${teamUUID}, path=${path}${detail ? `, detail=${detail}` : ''}`)
 }
 
 async function getAuthorizationRuntime(req: any): Promise<{
@@ -642,7 +642,7 @@ async function canReadReview(req: any, rv: any, operator: string): Promise<boole
   }
 
   try {
-    if (await hasPluginPermission(req, 'dcp_view_review')) return true
+    if (await hasPluginPermission(req, 'ipd_view_review')) return true
   } catch (error: any) {
     dependencyError = error instanceof AuthorizationServiceError
       ? error
@@ -664,9 +664,9 @@ async function authorizeApiRequest(req: any, policy: ApiPolicy): Promise<PluginR
     if (policy === 'identity' || policy === 'self') return null
 
     const permissionByPolicy: Partial<Record<ApiPolicy, PluginPermission>> = {
-      admin: 'dcp_admin',
-      create: 'dcp_create_review',
-      overview: 'dcp_view_review',
+      admin: 'ipd_admin',
+      create: 'ipd_create_review',
+      overview: 'ipd_view_review',
     }
     const requiredPermission = permissionByPolicy[policy]
     if (requiredPermission) {
@@ -693,7 +693,7 @@ async function authorizeApiRequest(req: any, policy: ApiPolicy): Promise<PluginR
     } else if (policy === 'review-creator' || policy === 'review-create-creator') {
       allowed = (rv as any).creator_uuid === operator
       if (allowed && policy === 'review-create-creator') {
-        allowed = await hasPluginPermission(req, 'dcp_create_review')
+        allowed = await hasPluginPermission(req, 'ipd_create_review')
       }
     } else if (policy === 'review-contributor' || policy === 'review-participant') {
       allowed = await isReviewParticipant(rv, operator)
@@ -709,7 +709,7 @@ async function authorizeApiRequest(req: any, policy: ApiPolicy): Promise<PluginR
     return authResponse(403, 'REVIEW_ACCESS_DENIED', '没有访问或操作该评审单的权限')
   } catch (error: any) {
     const message = error?.message || (typeof error === 'object' ? JSON.stringify(error) : String(error))
-    Logger.error(`[DCP][AUTHZ_UNAVAILABLE] policy=${policy}, error=${message}`)
+    Logger.error(`[IPD][AUTHZ_UNAVAILABLE] policy=${policy}, error=${message}`)
     const code = error instanceof AuthorizationServiceError
       ? error.code
       : 'AUTHORIZATION_SERVICE_UNAVAILABLE'
@@ -728,9 +728,9 @@ function withAuthorization(policy: ApiPolicy, handler: ApiHandler): ApiHandler {
 // ============================================================
 // 生命周期
 // ============================================================
-export function Install() { Logger.info('[DCP] Install') }
-export function Disable() { Logger.info('[DCP] Disable') }
-export function UnInstall() { Logger.info('[DCP] UnInstall') }
+export function Install() { Logger.info('[IPD] Install') }
+export function Disable() { Logger.info('[IPD] Disable') }
+export function UnInstall() { Logger.info('[IPD] UnInstall') }
 
 // ============================================================
 // 项目元数据解析（project_uuid → name/identifier/real_uuid）
@@ -743,7 +743,7 @@ async function findProjectByGraphQL(
   requestHeaders: Record<string, string> = {},
   platformApiHost = '',
 ): Promise<any> {
-  const path = `/project/api/project/team/${teamUUID}/items/graphql?t=dcp_project_meta`
+  const path = `/project/api/project/team/${teamUUID}/items/graphql?t=ipd_project_meta`
   const gqlRes = await OPFetch(
     platformApiHost ? buildPlatformUrl(platformApiHost, path) : path,
     {
@@ -826,7 +826,7 @@ async function resolveProjectMeta(
     identifier = exchData.identifier || projectKey
     realUUID = exchData.project_uuid || ''
   } catch (err: any) {
-    Logger.info(`[DCP][project-meta] exchange failed, key=${projectKey}, err=${err?.message || err}`)
+    Logger.info(`[IPD][project-meta] exchange failed, key=${projectKey}, err=${err?.message || err}`)
   }
 
   // Step 2: GraphQL → project name（失败不致命）
@@ -837,7 +837,7 @@ async function resolveProjectMeta(
         teamUUID, realUUID || projectKey, identifier, !platformApiHost, requestHeaders, platformApiHost,
       )
     } catch (err: any) {
-      Logger.info(`[DCP][project-meta] graphql failed, key=${projectKey}, realUUID=${realUUID}, err=${err?.message || err}`)
+      Logger.info(`[IPD][project-meta] graphql failed, key=${projectKey}, realUUID=${realUUID}, err=${err?.message || err}`)
     }
   }
 
@@ -846,7 +846,7 @@ async function resolveProjectMeta(
     try {
       project = await findProjectByStamp(teamUUID, realUUID, requestHeaders, platformApiHost)
     } catch (err: any) {
-      Logger.info(`[DCP][project-meta] stamp failed, key=${projectKey}, realUUID=${realUUID}, err=${err?.message || err}`)
+      Logger.info(`[IPD][project-meta] stamp failed, key=${projectKey}, realUUID=${realUUID}, err=${err?.message || err}`)
     }
   }
 
@@ -934,10 +934,10 @@ export async function Enable() {
       migrated++
     }
     if (migrated > 0) {
-      Logger.info(`[DCP] 状态机迁移完成：${migrated} 条评审单已回填 review_state`)
+      Logger.info(`[IPD] 状态机迁移完成：${migrated} 条评审单已回填 review_state`)
     }
   } catch (e) {
-    Logger.info('[DCP] 状态机迁移跳过（可能已迁移或无数据）')
+    Logger.info('[IPD] 状态机迁移跳过（可能已迁移或无数据）')
   }
 
   const n = await roleTpl.query().count()
@@ -953,18 +953,18 @@ export async function Enable() {
   for (let i = 0; i < roles.length; i++) {
     await roleTpl.set(`role_${i}`, { ...roles[i], sort_order: i })
   }
-  Logger.info('[DCP] Default reviewer roles initialized')
+  Logger.info('[IPD] Default reviewer roles initialized')
 }
 
 export function Upgrade(oldVersion: any) {
   Logger.info('[DCP v1.5.3] Upgrade from:', JSON.stringify(oldVersion))
-  Logger.info('[DCP v1.5.0] Entity migration: file fields on dcp_review_material already registered')
+  Logger.info('[DCP v1.5.0] Entity migration: file fields on ipd_review_material already registered')
 }
 
 // ============================================================
 // ProjectCustomComponent — 数据复制
 // ============================================================
-export async function copyPluginDataForDCP(_req: any): Promise<PluginResponse> {
+export async function copyPluginDataForIPD(_req: any): Promise<PluginResponse> {
   return { body: { code: 200, body: { state: 0, message: 'success' } } }
 }
 
@@ -997,7 +997,7 @@ const DEFAULT_IPD_FLOW_LAYOUT = {
 // ============================================================
 // 决议规则配置（resolution_rule_config）
 // DCP/TR 分别配置发布人、提交要求、通过规则、可选决议结果
-// 存储于 dcp_base_config，key=resolution_rule_config，value=JSON 字符串
+// 存储于 ipd_base_config，key=resolution_rule_config，value=JSON 字符串
 // ============================================================
 const DEFAULT_RESOLUTION_RULES: any = {
   dcp: {
@@ -1701,10 +1701,10 @@ export async function savePluginConfig(req: any): Promise<PluginResponse> {
       }
       await baseCfg.set('resolution_rule_config', { key: 'resolution_rule_config', value: JSON.stringify(rawRule) })
     }
-    Logger.info(`[DCP] Config saved by ${operator_uuid || 'unknown'}`)
+    Logger.info(`[IPD] Config saved by ${operator_uuid || 'unknown'}`)
     return { body: { ok: true } }
   } catch (err: any) {
-    Logger.error('[DCP] Config save failed:', err.message)
+    Logger.error('[IPD] Config save failed:', err.message)
     return { body: { error: err.message }, statusCode: 500 }
   }
 }
@@ -1766,7 +1766,7 @@ export async function createReview(req: any): Promise<PluginResponse> {
   } catch (e: any) {
     // 编号生成失败不阻塞创建，用时间戳兜底
     reviewNumber = `${reviewType === 'tr' ? 'TR-' : ''}${projectIdentifier}${Date.now()}`
-    Logger.info(`[DCP] review_number generation failed, fallback: ${reviewNumber}`)
+    Logger.info(`[IPD] review_number generation failed, fallback: ${reviewNumber}`)
   }
   // 固化角色模板和 Checklist 模板（创建时配置快照）
   const frozenRoles = filterRolesByType(await qAll(roleTpl), reviewType)
@@ -1885,7 +1885,7 @@ export async function createReview(req: any): Promise<PluginResponse> {
       }
     }
   } catch (e: any) {
-    Logger.info(`[DCP] auto-apply profile failed for ${rvUuid}: ${e?.message || e}`)
+    Logger.info(`[IPD] auto-apply profile failed for ${rvUuid}: ${e?.message || e}`)
   }
 
   return { body: {
@@ -2118,10 +2118,10 @@ export async function recreateReview(req: any): Promise<PluginResponse> {
 export async function getReviewDetail(req: any): Promise<PluginResponse> {
   try {
     const rid = getParam(req, 'review_uuid')
-    Logger.info(`[DCP] getReviewDetail start, rid=${rid}`)
+    Logger.info(`[IPD] getReviewDetail start, rid=${rid}`)
     if (!rid) return { body: { error: '缺少 review_uuid' }, statusCode: 400 }
     const rv = await review.get(rid)
-    Logger.info(`[DCP] getReviewDetail review.get ok, rv=${JSON.stringify(rv)?.substring(0, 200)}`)
+    Logger.info(`[IPD] getReviewDetail review.get ok, rv=${JSON.stringify(rv)?.substring(0, 200)}`)
     if (!rv) return { body: { error: '评审单不存在' }, statusCode: 404 }
     // 补充阶段名称
     const allPhases = await qAll(phaseTpl)
@@ -2129,7 +2129,7 @@ export async function getReviewDetail(req: any): Promise<PluginResponse> {
     const rvWithPhase = { ...(rv as any), phase_name: phMap.get((rv as any).phase_code) || '', review_type: (rv as any).review_type || 'dcp' }
     // 优先读 reviewers_json 快照（绕过 qAll 不可见问题），兜底读实体
     const snapReviewers = jsonArr((rv as any).reviewers_json || '[]')
-    Logger.info(`[DCP] getReviewDetail before Promise.all, rid=${rid}`)
+    Logger.info(`[IPD] getReviewDetail before Promise.all, rid=${rid}`)
     const [materials, indicators, entityReviewers, issues, resList, supps] = await Promise.all([
       qAll(matItem, (v: any) => v.review_uuid === rid),
       qAll(indData, (v: any) => v.review_uuid === rid),
@@ -2138,7 +2138,7 @@ export async function getReviewDetail(req: any): Promise<PluginResponse> {
       qAll(resolution, (v: any) => v.review_uuid === rid),
       qAll(supplement, (v: any) => v.review_uuid === rid),
     ])
-    Logger.info(`[DCP] getReviewDetail Promise.all ok: mats=${materials.length}, inds=${indicators.length}, entity_rvrs=${entityReviewers.length}, snap_rvrs=${snapReviewers.length}, issues=${issues.length}, res=${resList.length}, supps=${supps.length}`)
+    Logger.info(`[IPD] getReviewDetail Promise.all ok: mats=${materials.length}, inds=${indicators.length}, entity_rvrs=${entityReviewers.length}, snap_rvrs=${snapReviewers.length}, issues=${issues.length}, res=${resList.length}, supps=${supps.length}`)
     // 优先使用实体数据（source of truth），实体为空时兜底读快照
     let reviewers = entityReviewers.length > 0 ? entityReviewers : snapReviewers
     // 投影到当前轮次：如果 reviewer 的 round_no 不匹配当前轮次，视为未提交
@@ -2171,7 +2171,7 @@ export async function getReviewDetail(req: any): Promise<PluginResponse> {
       const liveTpl = allIndTpls.find((t: any) => t._key === i.template_id) || null
       return { ...i, template: frozenTpl || liveTpl }
     })
-    Logger.info(`[DCP] getReviewDetail building response`)
+    Logger.info(`[IPD] getReviewDetail building response`)
     const _rvEffState = getEffectiveState(rv)
     const _currentRoundNo = (rv as any).round_no || 1
     const evidenceContext = getEvidenceEditContext(rv)
@@ -2214,7 +2214,7 @@ export async function getReviewDetail(req: any): Promise<PluginResponse> {
         errDetail = JSON.stringify(e)
       }
     } catch { errDetail = String(e) }
-    Logger.error(`[DCP] getReviewDetail error: ${errDetail}`, e?.stack || '')
+    Logger.error(`[IPD] getReviewDetail error: ${errDetail}`, e?.stack || '')
     return { body: { error: `加载详情失败: ${errDetail}` }, statusCode: 500 }
   }
 }
@@ -2297,11 +2297,11 @@ export async function listReviewsByProject(req: any): Promise<PluginResponse> {
   }))
   enriched.sort((a: any, b: any) => (b.created_at || 0) - (a.created_at || 0))
   // 前端提示与后端发起校验共用“已完成闭环且本轮通过”的口径，并按评审类型隔离。
-  const [passedDcp, passedTr] = await Promise.all([
+  const [passedIpd, passedTr] = await Promise.all([
     getClosedPassingPhases(projectLookupIds, 'dcp'),
     getClosedPassingPhases(projectLookupIds, 'tr'),
   ])
-  const passedPhasesByType = { dcp: [...passedDcp], tr: [...passedTr] }
+  const passedPhasesByType = { dcp: [...passedIpd], tr: [...passedTr] }
   const passedPhases = rvType
     ? passedPhasesByType[normalizeReviewType(rvType) as 'dcp' | 'tr']
     : [...new Set([...passedPhasesByType.dcp, ...passedPhasesByType.tr])]
@@ -2319,7 +2319,7 @@ export async function listTeamReviews(req: any): Promise<PluginResponse> {
   // 提取 team_uuid（多种兜底）
   let tuid = getParam(req, 'team_uuid') || getParam(req, 'teamUUID') || ''
   if (!tuid) {
-    // ONES external API 路径为 /project/api/project/team/{uuid}/dcp/...
+    // ONES external API 路径为 /project/api/project/team/{uuid}/ipd/...
     const fullUrl = req.url || req.path || req.originalUrl || ''
     const m = fullUrl.match(/\/team\/([A-Za-z0-9_-]+)/)
     if (m) tuid = m[1]
@@ -2388,7 +2388,7 @@ export async function listTeamReviews(req: any): Promise<PluginResponse> {
 // ============================================================
 // 评审统计 API — 三个维度聚合数据
 // ============================================================
-export async function getDcpStats(req: any): Promise<PluginResponse> {
+export async function getIpdStats(req: any): Promise<PluginResponse> {
   const tuid = getParam(req, 'team_uuid') || getParam(req, 'teamUUID') || (() => {
     const fullUrl = req.url || req.path || ''
     const m = fullUrl.match(/\/team\/([A-Za-z0-9_-]+)/)
@@ -2939,7 +2939,7 @@ export async function startReview(req: any): Promise<PluginResponse> {
       else if (typeof e === 'string') errDetail = e
       else errDetail = JSON.stringify(e, Object.getOwnPropertyNames(e))
     } catch { errDetail = String(e) }
-    Logger.error(`[DCP] startReview error: ${errDetail}`, e?.stack || '')
+    Logger.error(`[IPD] startReview error: ${errDetail}`, e?.stack || '')
     return { body: { error: `发起评审失败: ${errDetail}` }, statusCode: 500 }
   }
 }
@@ -3042,7 +3042,7 @@ export async function recallReview(req: any): Promise<PluginResponse> {
      else if (typeof e === 'string') errDetail = e
      else errDetail = JSON.stringify(e)
    } catch { errDetail = String(e) }
-   Logger.error(`[DCP] recallReview error: ${errDetail}`, e?.stack || '')
+   Logger.error(`[IPD] recallReview error: ${errDetail}`, e?.stack || '')
    return { body: { error: `撤回失败: ${errDetail}` }, statusCode: 500 }
  }
 }
@@ -3224,7 +3224,7 @@ export async function getMaterialUploadUrl(req: any): Promise<PluginResponse> {
   if (!ex) return { body: { error: '材料项不存在' }, statusCode: 404 }
   // 生成对象存储 key（ONES 对象存储不支持 / 路径分隔符）
   const ts = Date.now()
-  const objKey = `dcp_files-${rid}-${tid}-${ts}`
+  const objKey = `ipd_files-${rid}-${tid}-${ts}`
   const { object } = storage
   const result = await object.upload(objKey) as any
   if (result?.code) {
@@ -3578,7 +3578,7 @@ export async function updateReviewers(req: any): Promise<PluginResponse> {
     savedPayload.push({ _key: key, ...value })
   }
 
-  // 写 reviewers_json 快照到 dcp_review（兜底读取）
+  // 写 reviewers_json 快照到 ipd_review（兜底读取）
   try {
     await review.set(rid, cleanForSet({ ...rv, reviewers_json: JSON.stringify(savedPayload), updated_at: Date.now() }))
   } catch {}
@@ -3697,7 +3697,7 @@ export async function submitOpinion(req: any): Promise<PluginResponse> {
   try {
     await review.set(rid, cleanForSet(reviewUpdate))
   } catch (e: any) {
-    Logger.info(`[DCP] submitOpinion review.set failed (snapshot may be stale): ${e?.message || e}`)
+    Logger.info(`[IPD] submitOpinion review.set failed (snapshot may be stale): ${e?.message || e}`)
   }
   await writeAudit(rid, reviewer_uuid, '提交评审意见', role_name,
     `评审意见: ${conclusion} | 风险: ${risk_level || 'medium'}`)
@@ -3714,15 +3714,15 @@ export async function submitOpinion(req: any): Promise<PluginResponse> {
         `${(rv as any).project_uuid ? `/project/${(rv as any).project_uuid}` : ''}`,
         [publisher.reviewer_uuid],
       )
-      Logger.info(`[DCP] submitOpinion notify publisher: publisher=${publisher.reviewer_uuid}, attempted=${sendResult.attempted.length}, succeeded=${sendResult.succeeded.length}, failed=${sendResult.failed.length}`)
+      Logger.info(`[IPD] submitOpinion notify publisher: publisher=${publisher.reviewer_uuid}, attempted=${sendResult.attempted.length}, succeeded=${sendResult.succeeded.length}, failed=${sendResult.failed.length}`)
       if (sendResult.failed.length > 0) {
-        Logger.error(`[DCP] submitOpinion notify failed: ${JSON.stringify(sendResult.failed)}`)
+        Logger.error(`[IPD] submitOpinion notify failed: ${JSON.stringify(sendResult.failed)}`)
       }
     } else {
-      Logger.info(`[DCP] submitOpinion: ready but no publisher found, _pubRole=${_pubRole}`)
+      Logger.info(`[IPD] submitOpinion: ready but no publisher found, _pubRole=${_pubRole}`)
     }
   } else {
-    Logger.info(`[DCP] submitOpinion: _ready=${_ready}, notify_enabled=${notCfg2.enabled}, on_all_submitted=${notCfg2.on_all_submitted}`)
+    Logger.info(`[IPD] submitOpinion: _ready=${_ready}, notify_enabled=${notCfg2.enabled}, on_all_submitted=${notCfg2.on_all_submitted}`)
   }
 
   return { body: { ok: true } }
@@ -3946,7 +3946,7 @@ export async function createIssue(req: any): Promise<PluginResponse> {
     if (!selectedProjectType) {
       return { body: {
         code: 'REMEDIATION_ISSUE_TYPE_NOT_AVAILABLE',
-        error: `当前项目未添加 DCP 评审中心配置的整改工作项类型「${configuredType.name || configuredType.uuid}」，不允许新建。请先在项目设置中添加该类型，或调整 DCP 评审中心的整改设置。`,
+        error: `当前项目未添加 IPD评审配置的整改工作项类型「${configuredType.name || configuredType.uuid}」，不允许新建。请先在项目设置中添加该类型，或调整 IPD评审的整改设置。`,
       }, statusCode: 409 }
     }
   }
@@ -4008,7 +4008,7 @@ export async function createIssue(req: any): Promise<PluginResponse> {
           data: innerErr?.response?.data || innerErr?.data,
           errcode: innerErr?.response?.data?.errcode || innerErr?.data?.errcode,
         })
-        Logger.error('[DCP] create issue internal API failed:', JSON.stringify(errors[errors.length - 1]))
+        Logger.error('[IPD] create issue internal API failed:', JSON.stringify(errors[errors.length - 1]))
       }
     }
 
@@ -4054,7 +4054,7 @@ export async function createIssue(req: any): Promise<PluginResponse> {
     return { body: { ok: true, issue_uuid: issueUuid, issue_number: issueNumber } }
   } catch (e: any) {
     const errMsg = e?.message || e?.errcode || '未知错误'
-    Logger.error('[DCP] createIssue error:', errMsg, e)
+    Logger.error('[IPD] createIssue error:', errMsg, e)
     const fallbackUrl = `#/team/${tuid}/project/${projectID}/task/create`
     return { body: { error: `创建工作项失败: ${errMsg}`, fallback_url: fallbackUrl }, statusCode: 500 }
   }
@@ -4244,7 +4244,7 @@ export async function publishResolution(req: any): Promise<PluginResponse> {
   }
 
   const now = Date.now()
-  const snapshotNumber = `DCP-RES-R${currentRoundNo}-${now.toString(36).toUpperCase()}`
+  const snapshotNumber = `IPD-RES-R${currentRoundNo}-${now.toString(36).toUpperCase()}`
 
   // conditional_pass / rework 必须填写条件说明
   if ((normalizedFc === 'conditional_pass' || normalizedFc === 'rework') && !cn.trim()) {
@@ -4629,11 +4629,11 @@ export async function remindReview(req: any): Promise<PluginResponse> {
 // ============================================================
 // 别名：ONES 平台可能自动生成的函数名
 // ============================================================
-export async function getDcpConfig(req: any): Promise<PluginResponse> {
+export async function getIpdConfig(req: any): Promise<PluginResponse> {
   return getPluginConfig(req)
 }
 
-export async function getDcpReviews(req: any): Promise<PluginResponse> {
+export async function getIpdReviews(req: any): Promise<PluginResponse> {
   const puid = getParam(req, 'project_uuid')
   if (puid) return listReviewsByProject(req)
   return listTeamReviews(req)
@@ -4949,7 +4949,7 @@ async function fetchIssueStatus(teamUUID: string, issueUUID: string): Promise<an
   try {
     const query = `query findTasks($filter: TasksFilter) { tasks(filter: $filter) { uuid status { uuid name category } } }`
     const res = await OPFetch(
-      `/project/api/project/team/${teamUUID}/items/graphql?t=dcpIssueStatus`,
+      `/project/api/project/team/${teamUUID}/items/graphql?t=ipdIssueStatus`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -4968,7 +4968,7 @@ async function fetchIssueStatus(teamUUID: string, issueUUID: string): Promise<an
       completion: categoryToCompletion(task.status.category),
     }
   } catch (e: any) {
-    Logger.info(`[DCP] issue status lookup unavailable: ${e?.message || e}`)
+    Logger.info(`[IPD] issue status lookup unavailable: ${e?.message || e}`)
     return null
   }
 }
@@ -5069,7 +5069,7 @@ export async function onIssueStatusChanged(payload: any) {
       }
     }
   } catch (e: any) {
-    Logger.error(`[DCP] onIssueStatusChanged error: ${e?.message || e}`)
+    Logger.error(`[IPD] onIssueStatusChanged error: ${e?.message || e}`)
   }
   return { body: {} }
 }
@@ -5211,7 +5211,7 @@ export async function syncRemediationStatus(req: any): Promise<PluginResponse> {
         }
       }
     } catch (e: any) {
-      Logger.error(`[DCP] syncRemediationStatus notify error: ${e?.message || e}`)
+      Logger.error(`[IPD] syncRemediationStatus notify error: ${e?.message || e}`)
     }
   }
 
@@ -5228,7 +5228,7 @@ export async function syncRemediationStatus(req: any): Promise<PluginResponse> {
     }
   }
   } catch (e: any) {
-    Logger.error(`[DCP] syncRemediationStatus error: ${e?.message || e}`, e?.stack || '')
+    Logger.error(`[IPD] syncRemediationStatus error: ${e?.message || e}`, e?.stack || '')
     return { body: { error: `同步失败: ${e?.message || e}` }, statusCode: 500 }
   }
 }
@@ -5313,7 +5313,7 @@ export async function confirmRemediation(req: any): Promise<PluginResponse> {
           }
         )
       } catch (e: any) {
-        Logger.error(`[DCP] addComment for ${item.issue_uuid} failed: ${e?.message || e}`)
+        Logger.error(`[IPD] addComment for ${item.issue_uuid} failed: ${e?.message || e}`)
       }
     }
   }
@@ -5532,7 +5532,7 @@ function validateReviewersAgainstProfileSnapshot(reviewers: Array<{role_name: st
   return null
 }
 
-// GET /dcp/reviewer-profiles?review_type=dcp
+// GET /ipd/reviewer-profiles?review_type=dcp
 export async function listReviewerProfiles(req: any): Promise<PluginResponse> {
   const rvType = getParam(req, 'review_type') || ''
   const profiles = rvType
@@ -5542,7 +5542,7 @@ export async function listReviewerProfiles(req: any): Promise<PluginResponse> {
   return { body: { profiles } }
 }
 
-// POST /dcp/reviewer-profile
+// POST /ipd/reviewer-profile
 // 角色分配模型：每个条目 { role_name, mode: 'single'|'pool', default_reviewer_uuid?, candidate_uuids[]? }
 export async function createReviewerProfile(req: any): Promise<PluginResponse> {
   const b = (req.body || {}) as any
@@ -5581,11 +5581,11 @@ export async function createReviewerProfile(req: any): Promise<PluginResponse> {
     created_at: now,
     updated_at: now,
   })
-  Logger.info(`[DCP] ReviewerProfile created: ${profileId} by ${operatorUuid}`)
+  Logger.info(`[IPD] ReviewerProfile created: ${profileId} by ${operatorUuid}`)
   return { body: { profile_id: profileId, profile_name: profile_name.trim() } }
 }
 
-// GET /dcp/reviewer-profile/:profile_id
+// GET /ipd/reviewer-profile/:profile_id
 export async function getReviewerProfile(req: any): Promise<PluginResponse> {
   const pid = getParam(req, 'profile_id')
   if (!pid) return { body: { error: '缺少 profile_id' }, statusCode: 400 }
@@ -5594,7 +5594,7 @@ export async function getReviewerProfile(req: any): Promise<PluginResponse> {
   return { body: { ...p, role_assignments: jsonArr((p as any).role_assignments_json || '[]') } }
 }
 
-// PUT /dcp/reviewer-profile/:profile_id
+// PUT /ipd/reviewer-profile/:profile_id
 export async function updateReviewerProfile(req: any): Promise<PluginResponse> {
   const pid = getParam(req, 'profile_id')
   const b = (req.body || {}) as any
@@ -5626,11 +5626,11 @@ export async function updateReviewerProfile(req: any): Promise<PluginResponse> {
     role_assignments_json: b.role_assignments !== undefined ? JSON.stringify(assignments) : (p as any).role_assignments_json,
     updated_at: now,
   })
-  Logger.info(`[DCP] ReviewerProfile updated: ${pid} by ${operatorUuid}`)
+  Logger.info(`[IPD] ReviewerProfile updated: ${pid} by ${operatorUuid}`)
   return { body: { ok: true } }
 }
 
-// DELETE /dcp/reviewer-profile/:profile_id
+// DELETE /ipd/reviewer-profile/:profile_id
 export async function deleteReviewerProfile(req: any): Promise<PluginResponse> {
   const pid = getParam(req, 'profile_id')
   if (!pid) return { body: { error: '缺少 profile_id' }, statusCode: 400 }
@@ -5642,7 +5642,7 @@ export async function deleteReviewerProfile(req: any): Promise<PluginResponse> {
     return { body: { error: `此 Profile 已被 ${bindings.length} 个项目绑定，请先解除绑定再删除` }, statusCode: 400 }
   }
   await reviewerProfile.delete(pid)
-  Logger.info(`[DCP] ReviewerProfile deleted: ${pid}`)
+  Logger.info(`[IPD] ReviewerProfile deleted: ${pid}`)
   return { body: { ok: true } }
 }
 
@@ -5650,7 +5650,7 @@ export async function deleteReviewerProfile(req: any): Promise<PluginResponse> {
 // Project Binding — 项目与 Profile 绑定
 // ============================================================
 
-// GET /dcp/project-bindings?project_uuid=xxx
+// GET /ipd/project-bindings?project_uuid=xxx
 export async function listProjectBindings(req: any): Promise<PluginResponse> {
   const puid = getQueryParam(req, 'project_uuid')
   const bindings = puid
@@ -5668,7 +5668,7 @@ export async function listProjectBindings(req: any): Promise<PluginResponse> {
   return { body: { bindings: enriched } }
 }
 
-// POST /dcp/project-binding（upsert: 同一 project_uuid + review_type 覆盖）
+// POST /ipd/project-binding（upsert: 同一 project_uuid + review_type 覆盖）
 export async function upsertProjectBinding(req: any): Promise<PluginResponse> {
   const b = (req.body || {}) as any
   const operatorUuid = getOperator(req)
@@ -5694,7 +5694,7 @@ export async function upsertProjectBinding(req: any): Promise<PluginResponse> {
         profile_id,
         review_type: rvType,
       }))
-      Logger.info(`[DCP] ProjectBinding updated: ${bindingId} → ${profile_id}`)
+      Logger.info(`[IPD] ProjectBinding updated: ${bindingId} → ${profile_id}`)
     } else {
       // 新建绑定
       bindingId = makeUuid()
@@ -5704,23 +5704,23 @@ export async function upsertProjectBinding(req: any): Promise<PluginResponse> {
         created_by: operatorUuid || '',
         created_at: now,
       }))
-      Logger.info(`[DCP] ProjectBinding created: ${bindingId}`)
+      Logger.info(`[IPD] ProjectBinding created: ${bindingId}`)
     }
   } catch (error: any) {
     const message = formatError(error)
-    Logger.error(`[DCP] ProjectBinding persistence failed: project=${project_uuid}, profile=${profile_id}, error=${message}`)
+    Logger.error(`[IPD] ProjectBinding persistence failed: project=${project_uuid}, profile=${profile_id}, error=${message}`)
     return { body: { error: `项目绑定保存失败: ${message}` }, statusCode: 500 }
   }
   return { body: { binding_id: bindingId, project_uuid, profile_id, profile_name: (p as any).profile_name || '' } }
 }
 
-// DELETE /dcp/project-binding/:binding_id
+// DELETE /ipd/project-binding/:binding_id
 export async function deleteProjectBinding(req: any): Promise<PluginResponse> {
   const bid = getParam(req, 'binding_id')
   if (!bid) return { body: { error: '缺少 binding_id' }, statusCode: 400 }
   try {
     await projectBinding.delete(bid)
-    Logger.info(`[DCP] ProjectBinding deleted: ${bid}`)
+    Logger.info(`[IPD] ProjectBinding deleted: ${bid}`)
   } catch (e: any) {
     return { body: { error: `删除失败: ${e?.message || e}` }, statusCode: 500 }
   }
@@ -5731,7 +5731,7 @@ export async function deleteProjectBinding(req: any): Promise<PluginResponse> {
 // Apply Profile to Review — 将 Profile 评审人应用到评审单
 // ============================================================
 
-// POST /dcp/review/:review_uuid/apply-profile
+// POST /ipd/review/:review_uuid/apply-profile
 export async function applyProfileToReview(req: any): Promise<PluginResponse> {
   const rid = getParam(req, 'review_uuid')
   const b = (req.body || {}) as any
@@ -5790,7 +5790,7 @@ export async function applyProfileToReview(req: any): Promise<PluginResponse> {
   }))
   await writeAudit(rid, operatorUuid, '应用Profile', rid,
     `从Profile「${(p as any).profile_name || profile_id}」应用评审人，共 ${savedPayload.length} 人`)
-  Logger.info(`[DCP] Profile applied to review ${rid}: ${(p as any).profile_name}, ${savedPayload.length} reviewers`)
+  Logger.info(`[IPD] Profile applied to review ${rid}: ${(p as any).profile_name}, ${savedPayload.length} reviewers`)
   return { body: { ok: true, applied_count: savedPayload.length, reviewers: savedPayload, profile_name: (p as any).profile_name } }
 }
 
@@ -5798,12 +5798,12 @@ export async function applyProfileToReview(req: any): Promise<PluginResponse> {
 // External API 安全出口
 // plugin.yaml 仅引用以下包装器，业务函数不直接暴露给外部请求。
 // ============================================================
-export const apiGetDcpConfig = withAuthorization('identity', getDcpConfig)
+export const apiGetIpdConfig = withAuthorization('identity', getIpdConfig)
 export const apiSavePluginConfig = withAuthorization('admin', savePluginConfig)
 export const apiCreateReview = withAuthorization('create', createReview)
 export const apiGetReviewDetail = withAuthorization('review-read', getReviewDetail)
 export const apiListReviewsByProject = withAuthorization('project-read', listReviewsByProject)
-export const apiGetDcpReviews = withAuthorization('overview', getDcpReviews)
+export const apiGetIpdReviews = withAuthorization('overview', getIpdReviews)
 export const apiListMyReviews = withAuthorization('self', listMyReviews)
 export const apiListTeamReviews = withAuthorization('overview', listTeamReviews)
 export const apiStartReview = withAuthorization('review-creator', startReview)
@@ -5839,7 +5839,7 @@ export const apiGetRemediationIssues = withAuthorization('review-read', getRemed
 export const apiRefreshRemediationStatus = withAuthorization('review-creator-or-publisher', refreshRemediationStatus)
 export const apiSyncRemediationStatus = withAuthorization('review-creator-or-publisher', syncRemediationStatus)
 export const apiConfirmRemediation = withAuthorization('review-publisher', confirmRemediation)
-export const apiGetDcpStats = withAuthorization('overview', getDcpStats)
+export const apiGetIpdStats = withAuthorization('overview', getIpdStats)
 export const apiListReviewerProfiles = withAuthorization('admin', listReviewerProfiles)
 export const apiCreateReviewerProfile = withAuthorization('admin', createReviewerProfile)
 export const apiGetReviewerProfile = withAuthorization('admin', getReviewerProfile)

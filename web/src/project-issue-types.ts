@@ -97,7 +97,7 @@ export function remediationTypeBlockedMessage(
   configuredName: string,
 ): string {
   if (status === 'missing') {
-    return `当前项目未添加 DCP 评审中心配置的整改工作项类型「${configuredName}」，不允许新建。请先在项目设置中添加该类型，或调整 DCP 评审中心的整改设置。`
+    return `当前项目未添加 IPD评审配置的整改工作项类型「${configuredName}」，不允许新建。请先在项目设置中添加该类型，或调整 IPD评审的整改设置。`
   }
   if (status === 'unknown') return '无法确认当前项目的工作项类型，不允许新建整改项。请刷新后重试。'
   return ''

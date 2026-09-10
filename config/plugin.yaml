@@ -1,6 +1,6 @@
 service:
-  app_id: 709xehle
-  name: DCP评审中心
+  app_id: ipdrev01
+  name: IPD评审
   description: 团队级DCP/TR评审插件。支持项目内发起DCP阶段决策评审和TR技术评审、多人异步评审、关联工作项、不可覆盖决议快照和审计追溯。
   version: 1.31.47
   mode: org
@@ -17,47 +17,47 @@ service:
     policy: standard
     target: ''
   permission:
-    - name: DCP 插件管理
-      field: dcp_admin
+    - name: IPD 插件管理
+      field: ipd_admin
       desc: 允许修改DCP评审模板、阶段、角色、检查项等全局配置
-    - name: 新建 DCP 评审
-      field: dcp_create_review
+    - name: 新建 IPD 评审
+      field: ipd_create_review
       desc: 允许在项目内新建DCP决策评审单
-    - name: 查看 DCP 评审总览
-      field: dcp_view_review
+    - name: 查看 IPD 评审总览
+      field: ipd_view_review
       desc: 允许查看团队DCP评审总览页面
 modules:
-  - id: dcp-review-tab
+  - id: ipd-review-tab
     moduleType: ones:project:component:new
     title: DCP评审
     description: 项目内DCP评审工作台：评审列表、创建评审单、材料/指标/评审人/意见/关联工作项/决议/审计
-    entry: ./modules/dcp-review-tab/index.tsx
-  - id: dcp-reviewer-workspace
+    entry: ./modules/ipd-review-tab/index.tsx
+  - id: ipd-reviewer-workspace
     moduleType: ones:workspace:new
     title: DCP评审工作台
     description: 评审人工作台：查看待评审单、填写评审意见、关联工作项
-    entry: modules/dcp-reviewer-workspace/index.html
-  - id: dcp-sidebar
+    entry: modules/ipd-reviewer-workspace/index.html
+  - id: ipd-sidebar
     moduleType: ones:app:new
-    title: DCP评审中心
+    title: IPD评审
     modules:
-      - id: dcp-template-config
+      - id: ipd-template-config
         title: 模板配置
-        entry: modules/dcp-sidebar/dcp-template-config/index.html
-        permission: dcp_admin
-      - id: dcp-review-overview
+        entry: modules/ipd-sidebar/ipd-template-config/index.html
+        permission: ipd_admin
+      - id: ipd-review-overview
         title: 评审总览
-        entry: modules/dcp-sidebar/dcp-review-overview/index.html
-        permission: dcp_view_review
+        entry: modules/ipd-sidebar/ipd-review-overview/index.html
+        permission: ipd_view_review
 abilities:
-  - id: dcp-project-component
+  - id: ipd-project-component
     name: ProjectCustomComponent
     version: 1.0.0
     abilityType: ProjectCustomComponent
     function:
-      copyPluginData: copyPluginDataForDCP
+      copyPluginData: copyPluginDataForIPD
     relateModule:
-      componentModuleEnter: dcp-review-tab
+      componentModuleEnter: ipd-review-tab
     config:
       - key: component_name
         label: 组件名称
@@ -74,274 +74,274 @@ abilities:
         value: false
         fieldType: Switch
         show: false
-  - id: dcp-sidebar-menu
+  - id: ipd-sidebar-menu
     name: 侧边栏菜单
     version: 1.0.0
     abilityType: SidebarMenu
     relateModule:
-      systemMenu: dcp-sidebar
+      systemMenu: ipd-sidebar
 apis:
   - type: external
     methods:
       - GET
-    url: /team/:teamUUID/dcp/config
-    function: apiGetDcpConfig
+    url: /team/:teamUUID/ipd/config
+    function: apiGetIpdConfig
   - type: external
     methods:
       - POST
-    url: /team/:teamUUID/dcp/config
+    url: /team/:teamUUID/ipd/config
     function: apiSavePluginConfig
   - type: external
     methods:
       - POST
-    url: /team/:teamUUID/dcp/review
+    url: /team/:teamUUID/ipd/review
     function: apiCreateReview
   - type: external
     methods:
       - GET
-    url: /team/:teamUUID/dcp/review/:review_uuid
+    url: /team/:teamUUID/ipd/review/:review_uuid
     function: apiGetReviewDetail
   - type: external
     methods:
       - GET
-    url: /team/:teamUUID/dcp/reviews/by-project/:project_uuid
+    url: /team/:teamUUID/ipd/reviews/by-project/:project_uuid
     function: apiListReviewsByProject
   - type: external
     methods:
       - GET
-    url: /team/:teamUUID/dcp/reviews
-    function: apiGetDcpReviews
+    url: /team/:teamUUID/ipd/reviews
+    function: apiGetIpdReviews
   - type: external
     methods:
       - GET
-    url: /team/:teamUUID/dcp/reviews/my
+    url: /team/:teamUUID/ipd/reviews/my
     function: apiListMyReviews
   - type: external
     methods:
       - GET
-    url: /team/:teamUUID/dcp/reviews/team
+    url: /team/:teamUUID/ipd/reviews/team
     function: apiListTeamReviews
   - type: external
     methods:
       - POST
-    url: /team/:teamUUID/dcp/review/:review_uuid/start
+    url: /team/:teamUUID/ipd/review/:review_uuid/start
     function: apiStartReview
   - type: external
     methods:
       - POST
-    url: /team/:teamUUID/dcp/review/:review_uuid/recall
+    url: /team/:teamUUID/ipd/review/:review_uuid/recall
     function: apiRecallReview
   - type: external
     methods:
       - POST
-    url: /team/:teamUUID/dcp/review/:review_uuid/basic-info
+    url: /team/:teamUUID/ipd/review/:review_uuid/basic-info
     function: apiUpdateReviewBasicInfo
   - type: external
     methods:
       - DELETE
-    url: /team/:teamUUID/dcp/review/:review_uuid
+    url: /team/:teamUUID/ipd/review/:review_uuid
     function: apiDeleteReview
   - type: external
     methods:
       - POST
-    url: /team/:teamUUID/dcp/review/:review_uuid/recreate
+    url: /team/:teamUUID/ipd/review/:review_uuid/recreate
     function: apiRecreateReview
   - type: external
     methods:
       - POST
-    url: /team/:teamUUID/dcp/review/:review_uuid/material-status
+    url: /team/:teamUUID/ipd/review/:review_uuid/material-status
     function: apiUpdateMaterialStatus
   - type: external
     methods:
       - POST
-    url: /team/:teamUUID/dcp/review/:review_uuid/material-upload
+    url: /team/:teamUUID/ipd/review/:review_uuid/material-upload
     function: apiUploadMaterialFile
   - type: external
     methods:
       - POST
-    url: /team/:teamUUID/dcp/review/:review_uuid/material-remove
+    url: /team/:teamUUID/ipd/review/:review_uuid/material-remove
     function: apiRemoveMaterialFile
   - type: external
     methods:
       - GET
-    url: /team/:teamUUID/dcp/review/:review_uuid/material/:template_id/upload-url
+    url: /team/:teamUUID/ipd/review/:review_uuid/material/:template_id/upload-url
     function: apiGetMaterialUploadUrl
   - type: external
     methods:
       - GET
-    url: /team/:teamUUID/dcp/review/:review_uuid/material/:template_id/download-url
+    url: /team/:teamUUID/ipd/review/:review_uuid/material/:template_id/download-url
     function: apiGetMaterialDownloadUrl
   - type: external
     methods:
       - GET
-    url: /team/:teamUUID/dcp/review/:review_uuid/material/:template_id/preview
+    url: /team/:teamUUID/ipd/review/:review_uuid/material/:template_id/preview
     function: apiGetMaterialPreview
   - type: external
     methods:
       - GET
-    url: /team/:teamUUID/dcp/review/:review_uuid/material-attachment/download-url
+    url: /team/:teamUUID/ipd/review/:review_uuid/material-attachment/download-url
     function: apiGetAttachmentDownloadUrl
   - type: external
     methods:
       - GET
-    url: /team/:teamUUID/dcp/review/:review_uuid/material-attachment/preview
+    url: /team/:teamUUID/ipd/review/:review_uuid/material-attachment/preview
     function: apiGetAttachmentPreview
   - type: external
     methods:
       - POST
-    url: /team/:teamUUID/dcp/review/:review_uuid/indicators
+    url: /team/:teamUUID/ipd/review/:review_uuid/indicators
     function: apiUpdateIndicators
   - type: external
     methods:
       - POST
-    url: /team/:teamUUID/dcp/review/:review_uuid/reviewers
+    url: /team/:teamUUID/ipd/review/:review_uuid/reviewers
     function: apiUpdateReviewers
   - type: external
     methods:
       - POST
-    url: /team/:teamUUID/dcp/review/:review_uuid/opinion
+    url: /team/:teamUUID/ipd/review/:review_uuid/opinion
     function: apiSubmitOpinion
   - type: external
     methods:
       - POST
-    url: /team/:teamUUID/dcp/review/:review_uuid/link-issue
+    url: /team/:teamUUID/ipd/review/:review_uuid/link-issue
     function: apiLinkIssue
   - type: external
     methods:
       - GET
-    url: /team/:teamUUID/dcp/review/:review_uuid/linked-issues
+    url: /team/:teamUUID/ipd/review/:review_uuid/linked-issues
     function: apiGetLinkedIssues
   - type: external
     methods:
       - POST
-    url: /team/:teamUUID/dcp/review/:review_uuid/create-issue
+    url: /team/:teamUUID/ipd/review/:review_uuid/create-issue
     function: apiCreateIssue
   - type: external
     methods:
       - POST
-    url: /team/:teamUUID/dcp/project/:project_uuid/issue-types
+    url: /team/:teamUUID/ipd/project/:project_uuid/issue-types
     function: apiListIssueTypes
   - type: external
     methods:
       - POST
-    url: /team/:teamUUID/dcp/review/:review_uuid/generate-resolution
+    url: /team/:teamUUID/ipd/review/:review_uuid/generate-resolution
     function: apiGenerateResolution
   - type: external
     methods:
       - POST
-    url: /team/:teamUUID/dcp/review/:review_uuid/publish-resolution
+    url: /team/:teamUUID/ipd/review/:review_uuid/publish-resolution
     function: apiPublishResolution
   - type: external
     methods:
       - POST
-    url: /team/:teamUUID/dcp/review/:review_uuid/supplement
+    url: /team/:teamUUID/ipd/review/:review_uuid/supplement
     function: apiAddSupplement
   - type: external
     methods:
       - GET
-    url: /team/:teamUUID/dcp/review/:review_uuid/audit-log
+    url: /team/:teamUUID/ipd/review/:review_uuid/audit-log
     function: apiGetAuditLog
   - type: external
     methods:
       - POST
-    url: /team/:teamUUID/dcp/review/:review_uuid/checklist
+    url: /team/:teamUUID/ipd/review/:review_uuid/checklist
     function: apiCheckChecklist
   - type: external
     methods:
       - POST
-    url: /team/:teamUUID/dcp/review/:review_uuid/remind
+    url: /team/:teamUUID/ipd/review/:review_uuid/remind
     function: apiRemindReview
   - type: external
     methods:
       - POST
-    url: /team/:teamUUID/dcp/review/:review_uuid/transition
+    url: /team/:teamUUID/ipd/review/:review_uuid/transition
     function: apiTransitionReview
   - type: external
     methods:
       - GET
-    url: /team/:teamUUID/dcp/review/:review_uuid/state
+    url: /team/:teamUUID/ipd/review/:review_uuid/state
     function: apiGetReviewState
   - type: external
     methods:
       - GET
-    url: /team/:teamUUID/dcp/review/:review_uuid/rounds
+    url: /team/:teamUUID/ipd/review/:review_uuid/rounds
     function: apiGetReviewRounds
   - type: external
     methods:
       - GET
-    url: /team/:teamUUID/dcp/review/:review_uuid/remediation
+    url: /team/:teamUUID/ipd/review/:review_uuid/remediation
     function: apiGetRemediationIssues
   - type: external
     methods:
       - POST
-    url: /team/:teamUUID/dcp/review/:review_uuid/remediation/refresh
+    url: /team/:teamUUID/ipd/review/:review_uuid/remediation/refresh
     function: apiRefreshRemediationStatus
   - type: external
     methods:
       - POST
-    url: /team/:teamUUID/dcp/review/:review_uuid/remediation/sync
+    url: /team/:teamUUID/ipd/review/:review_uuid/remediation/sync
     function: apiSyncRemediationStatus
   - type: external
     methods:
       - POST
-    url: /team/:teamUUID/dcp/review/:review_uuid/remediation/confirm
+    url: /team/:teamUUID/ipd/review/:review_uuid/remediation/confirm
     function: apiConfirmRemediation
   - type: external
     methods:
       - GET
-    url: /team/:teamUUID/dcp/stats
-    function: apiGetDcpStats
+    url: /team/:teamUUID/ipd/stats
+    function: apiGetIpdStats
   - type: external
     methods:
       - GET
-    url: /team/:teamUUID/dcp/reviewer-profiles
+    url: /team/:teamUUID/ipd/reviewer-profiles
     function: apiListReviewerProfiles
   - type: external
     methods:
       - POST
-    url: /team/:teamUUID/dcp/reviewer-profile
+    url: /team/:teamUUID/ipd/reviewer-profile
     function: apiCreateReviewerProfile
   - type: external
     methods:
       - GET
-    url: /team/:teamUUID/dcp/reviewer-profile/:profile_id
+    url: /team/:teamUUID/ipd/reviewer-profile/:profile_id
     function: apiGetReviewerProfile
   - type: external
     methods:
       - PUT
-    url: /team/:teamUUID/dcp/reviewer-profile/:profile_id
+    url: /team/:teamUUID/ipd/reviewer-profile/:profile_id
     function: apiUpdateReviewerProfile
   - type: external
     methods:
       - DELETE
-    url: /team/:teamUUID/dcp/reviewer-profile/:profile_id
+    url: /team/:teamUUID/ipd/reviewer-profile/:profile_id
     function: apiDeleteReviewerProfile
   - type: external
     methods:
       - GET
-    url: /team/:teamUUID/dcp/project-bindings
+    url: /team/:teamUUID/ipd/project-bindings
     function: apiListProjectBindings
   - type: external
     methods:
       - POST
-    url: /team/:teamUUID/dcp/project-binding
+    url: /team/:teamUUID/ipd/project-binding
     function: apiUpsertProjectBinding
   - type: external
     methods:
       - DELETE
-    url: /team/:teamUUID/dcp/project-binding/:binding_id
+    url: /team/:teamUUID/ipd/project-binding/:binding_id
     function: apiDeleteProjectBinding
   - type: external
     methods:
       - POST
-    url: /team/:teamUUID/dcp/review/:review_uuid/apply-profile
+    url: /team/:teamUUID/ipd/review/:review_uuid/apply-profile
     function: apiApplyProfileToReview
 events:
   - eventType: ones:project:issue-status:changed
     function: onIssueStatusChanged
 storage:
   entities:
-    - name: dcp_base_config
+    - name: ipd_base_config
       attributes:
         key:
           type: text
@@ -351,7 +351,7 @@ storage:
           type: text
           length: 32768
           default: ''
-    - name: dcp_phase_template
+    - name: ipd_phase_template
       attributes:
         phase_code:
           type: text
@@ -381,7 +381,7 @@ storage:
           type: text
           length: 1024
           default: '[]'
-    - name: dcp_material_template
+    - name: ipd_material_template
       attributes:
         material_name:
           type: text
@@ -406,7 +406,7 @@ storage:
           type: text
           length: 8
           default: dcp
-    - name: dcp_indicator_template
+    - name: ipd_indicator_template
       attributes:
         indicator_name:
           type: text
@@ -440,7 +440,7 @@ storage:
           type: text
           length: 8
           default: dcp
-    - name: dcp_reviewer_role
+    - name: ipd_reviewer_role
       attributes:
         role_name:
           type: text
@@ -460,7 +460,7 @@ storage:
           type: text
           length: 8
           default: dcp
-    - name: dcp_review
+    - name: ipd_review
       attributes:
         review_uuid:
           type: text
@@ -578,7 +578,7 @@ storage:
           type: text
           length: 65535
           default: '[]'
-    - name: dcp_review_material
+    - name: ipd_review_material
       attributes:
         review_uuid:
           type: text
@@ -644,7 +644,7 @@ storage:
           type: text
           length: 65535
           default: '[]'
-    - name: dcp_review_indicator
+    - name: ipd_review_indicator
       attributes:
         review_uuid:
           type: text
@@ -698,7 +698,7 @@ storage:
           type: integer
           length: 8
           default: 0
-    - name: dcp_review_reviewer
+    - name: ipd_review_reviewer
       attributes:
         review_uuid:
           type: text
@@ -744,7 +744,7 @@ storage:
           type: integer
           length: 4
           default: 1
-    - name: dcp_linked_issue
+    - name: ipd_linked_issue
       attributes:
         review_uuid:
           type: text
@@ -829,7 +829,7 @@ storage:
           type: text
           length: 64
           default: ''
-    - name: dcp_phase_guard
+    - name: ipd_phase_guard
       attributes:
         guard_key:
           type: text
@@ -863,7 +863,7 @@ storage:
           type: integer
           length: 16
           default: 0
-    - name: dcp_resolution
+    - name: ipd_resolution
       attributes:
         review_uuid:
           type: text
@@ -929,7 +929,7 @@ storage:
           type: text
           length: 65535
           default: ''
-    - name: dcp_supplement
+    - name: ipd_supplement
       attributes:
         review_uuid:
           type: text
@@ -955,7 +955,7 @@ storage:
           type: integer
           length: 16
           default: 0
-    - name: dcp_audit_log
+    - name: ipd_audit_log
       attributes:
         review_uuid:
           type: text
@@ -985,7 +985,7 @@ storage:
           type: text
           length: 16
           default: success
-    - name: dcp_checklist_item
+    - name: ipd_checklist_item
       attributes:
         phase_code:
           type: text
@@ -1007,7 +1007,7 @@ storage:
           type: text
           length: 8
           default: dcp
-    - name: dcp_checklist_result
+    - name: ipd_checklist_result
       attributes:
         review_uuid:
           type: text
@@ -1029,7 +1029,7 @@ storage:
           type: integer
           length: 16
           default: 0
-    - name: dcp_reviewer_profile
+    - name: ipd_reviewer_profile
       attributes:
         profile_name:
           type: text
@@ -1059,7 +1059,7 @@ storage:
           type: integer
           length: 16
           default: 0
-    - name: dcp_project_binding
+    - name: ipd_project_binding
       attributes:
         project_uuid:
           type: text

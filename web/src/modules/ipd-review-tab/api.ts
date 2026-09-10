@@ -1,8 +1,8 @@
-import { getTeamUUID, getAppID, DcpApiError } from '../../api'
+import { getTeamUUID, getAppID, IpdApiError } from '../../api'
 
 function buildUrl(url: string): string {
   const tu = getTeamUUID()
-  if (!tu) throw new DcpApiError('未获取到团队 UUID，请从 ONES 项目页面进入。', 0)
+  if (!tu) throw new IpdApiError('未获取到团队 UUID，请从 ONES 项目页面进入。', 0)
   return `/project/api/project/team/${tu}${url}`
 }
 
@@ -13,7 +13,7 @@ function callApi<T = any>(url: string, options: { method?: string; body?: string
     xhr.open(options.method || 'GET', fullUrl, true)
     xhr.withCredentials = true
     xhr.setRequestHeader('Content-Type', 'application/json')
-    xhr.setRequestHeader('Ones-Plugin-Id', '709xehle')
+    xhr.setRequestHeader('Ones-Plugin-Id', 'ipdrev01')
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
         try {
@@ -43,8 +43,8 @@ function callApi<T = any>(url: string, options: { method?: string; body?: string
 }
 
 // ---- 基础 ----
-export const getPluginConfig = () => callApi('/dcp/config')
-export const savePluginConfig = (data: any) => callApi('/dcp/config', { method: 'POST', body: JSON.stringify(data) })
+export const getPluginConfig = () => callApi('/ipd/config')
+export const savePluginConfig = (data: any) => callApi('/ipd/config', { method: 'POST', body: JSON.stringify(data) })
 
 // ---- 用户搜索（加载团队成员，客户端过滤） ----
 let _memberCache: { uuid: string; name: string; email: string; avatar: string }[] | null = null
@@ -86,7 +86,7 @@ export async function resolveReviewerNames(uuids: string[]): Promise<Record<stri
 
 export async function searchUsers(keyword: string): Promise<{ uuid: string; name: string; email: string; avatar: string }[]> {
   const tu = getTeamUUID()
-  if (!tu) throw new DcpApiError('未获取到团队 UUID', 0)
+  if (!tu) throw new IpdApiError('未获取到团队 UUID', 0)
 
   // 首次加载全部团队成员并缓存
   if (!_memberCache) {
@@ -167,86 +167,86 @@ export async function ensureProjectMembers(projectUuid: string, userUuids: strin
 }
 
 // ---- 评审单 ----
-export const createReview = (data: any) => callApi('/dcp/review', { method: 'POST', body: JSON.stringify(data) })
-export const getReviewDetail = (uuid: string) => callApi(`/dcp/review/${uuid}`)
+export const createReview = (data: any) => callApi('/ipd/review', { method: 'POST', body: JSON.stringify(data) })
+export const getReviewDetail = (uuid: string) => callApi(`/ipd/review/${uuid}`)
 export const listReviewsByProject = (puuid: string, reviewType?: string) => {
   const params = new URLSearchParams()
   if (reviewType) params.set('review_type', reviewType)
   const query = params.toString()
-  return callApi(`/dcp/reviews/by-project/${puuid}${query ? `?${query}` : ''}`)
+  return callApi(`/ipd/reviews/by-project/${puuid}${query ? `?${query}` : ''}`)
 }
-export const listTeamReviews = () => callApi('/dcp/reviews/team')
-export const startReview = (uuid: string, data?: any) => callApi(`/dcp/review/${uuid}/start`, { method: 'POST', body: JSON.stringify(data || {}) })
-export const recallReview = (uuid: string, data?: any) => callApi(`/dcp/review/${uuid}/recall`, { method: 'POST', body: JSON.stringify(data || {}) })
-export const updateReviewBasicInfo = (uuid: string, data?: any) => callApi(`/dcp/review/${uuid}/basic-info`, { method: 'POST', body: JSON.stringify(data || {}) })
-export const deleteReview = (uuid: string, data?: any) => callApi(`/dcp/review/${uuid}`, { method: 'DELETE', body: JSON.stringify(data || {}) })
-export const recreateReview = (uuid: string, data?: any) => callApi(`/dcp/review/${uuid}/recreate`, { method: 'POST', body: JSON.stringify(data || {}) })
+export const listTeamReviews = () => callApi('/ipd/reviews/team')
+export const startReview = (uuid: string, data?: any) => callApi(`/ipd/review/${uuid}/start`, { method: 'POST', body: JSON.stringify(data || {}) })
+export const recallReview = (uuid: string, data?: any) => callApi(`/ipd/review/${uuid}/recall`, { method: 'POST', body: JSON.stringify(data || {}) })
+export const updateReviewBasicInfo = (uuid: string, data?: any) => callApi(`/ipd/review/${uuid}/basic-info`, { method: 'POST', body: JSON.stringify(data || {}) })
+export const deleteReview = (uuid: string, data?: any) => callApi(`/ipd/review/${uuid}`, { method: 'DELETE', body: JSON.stringify(data || {}) })
+export const recreateReview = (uuid: string, data?: any) => callApi(`/ipd/review/${uuid}/recreate`, { method: 'POST', body: JSON.stringify(data || {}) })
 
 // ---- 材料 & 指标 ----
-export const updateMaterialStatus = (uuid: string, data: any) => callApi(`/dcp/review/${uuid}/material-status`, { method: 'POST', body: JSON.stringify(data) })
-export const uploadMaterialFile = (uuid: string, data: any) => callApi(`/dcp/review/${uuid}/material-upload`, { method: 'POST', body: JSON.stringify(data) })
-export const removeMaterialFile = (uuid: string, data: any) => callApi(`/dcp/review/${uuid}/material-remove`, { method: 'POST', body: JSON.stringify(data) })
-export const getMaterialUploadUrl = (reviewUuid: string, templateId: string) => callApi(`/dcp/review/${reviewUuid}/material/${templateId}/upload-url`)
-export const getMaterialDownloadUrl = (reviewUuid: string, templateId: string) => callApi(`/dcp/review/${reviewUuid}/material/${templateId}/download-url`)
-export const getMaterialPreview = (reviewUuid: string, templateId: string) => callApi(`/dcp/review/${reviewUuid}/material/${templateId}/preview`)
-export const getAttachmentDownloadUrl = (reviewUuid: string, objectKey: string) => callApi(`/dcp/review/${reviewUuid}/material-attachment/download-url?object_key=${encodeURIComponent(objectKey)}`)
-export const getAttachmentPreview = (reviewUuid: string, objectKey: string, fileName: string) => callApi(`/dcp/review/${reviewUuid}/material-attachment/preview?object_key=${encodeURIComponent(objectKey)}&file_name=${encodeURIComponent(fileName)}`)
-export const updateIndicators = (uuid: string, data: any) => callApi(`/dcp/review/${uuid}/indicators`, { method: 'POST', body: JSON.stringify(data) })
+export const updateMaterialStatus = (uuid: string, data: any) => callApi(`/ipd/review/${uuid}/material-status`, { method: 'POST', body: JSON.stringify(data) })
+export const uploadMaterialFile = (uuid: string, data: any) => callApi(`/ipd/review/${uuid}/material-upload`, { method: 'POST', body: JSON.stringify(data) })
+export const removeMaterialFile = (uuid: string, data: any) => callApi(`/ipd/review/${uuid}/material-remove`, { method: 'POST', body: JSON.stringify(data) })
+export const getMaterialUploadUrl = (reviewUuid: string, templateId: string) => callApi(`/ipd/review/${reviewUuid}/material/${templateId}/upload-url`)
+export const getMaterialDownloadUrl = (reviewUuid: string, templateId: string) => callApi(`/ipd/review/${reviewUuid}/material/${templateId}/download-url`)
+export const getMaterialPreview = (reviewUuid: string, templateId: string) => callApi(`/ipd/review/${reviewUuid}/material/${templateId}/preview`)
+export const getAttachmentDownloadUrl = (reviewUuid: string, objectKey: string) => callApi(`/ipd/review/${reviewUuid}/material-attachment/download-url?object_key=${encodeURIComponent(objectKey)}`)
+export const getAttachmentPreview = (reviewUuid: string, objectKey: string, fileName: string) => callApi(`/ipd/review/${reviewUuid}/material-attachment/preview?object_key=${encodeURIComponent(objectKey)}&file_name=${encodeURIComponent(fileName)}`)
+export const updateIndicators = (uuid: string, data: any) => callApi(`/ipd/review/${uuid}/indicators`, { method: 'POST', body: JSON.stringify(data) })
 
 // ---- 评审人 & 意见 ----
-export const updateReviewers = (uuid: string, data: any) => callApi(`/dcp/review/${uuid}/reviewers`, { method: 'POST', body: JSON.stringify(data) })
-export const submitOpinion = (uuid: string, data: any) => callApi(`/dcp/review/${uuid}/opinion`, { method: 'POST', body: JSON.stringify(data) })
+export const updateReviewers = (uuid: string, data: any) => callApi(`/ipd/review/${uuid}/reviewers`, { method: 'POST', body: JSON.stringify(data) })
+export const submitOpinion = (uuid: string, data: any) => callApi(`/ipd/review/${uuid}/opinion`, { method: 'POST', body: JSON.stringify(data) })
 
 // ---- 关联工作项 ----
-export const linkIssue = (uuid: string, data: any) => callApi(`/dcp/review/${uuid}/link-issue`, { method: 'POST', body: JSON.stringify(data) })
-export const getLinkedIssues = (uuid: string) => callApi(`/dcp/review/${uuid}/linked-issues`)
+export const linkIssue = (uuid: string, data: any) => callApi(`/ipd/review/${uuid}/link-issue`, { method: 'POST', body: JSON.stringify(data) })
+export const getLinkedIssues = (uuid: string) => callApi(`/ipd/review/${uuid}/linked-issues`)
 
 // ---- 决议 & 补充 ----
-export const generateResolution = (uuid: string, data: any) => callApi(`/dcp/review/${uuid}/generate-resolution`, { method: 'POST', body: JSON.stringify(data) })
-export const publishResolution = (uuid: string, data: any) => callApi(`/dcp/review/${uuid}/publish-resolution`, { method: 'POST', body: JSON.stringify(data) })
-export const addSupplement = (uuid: string, data: any) => callApi(`/dcp/review/${uuid}/supplement`, { method: 'POST', body: JSON.stringify(data) })
+export const generateResolution = (uuid: string, data: any) => callApi(`/ipd/review/${uuid}/generate-resolution`, { method: 'POST', body: JSON.stringify(data) })
+export const publishResolution = (uuid: string, data: any) => callApi(`/ipd/review/${uuid}/publish-resolution`, { method: 'POST', body: JSON.stringify(data) })
+export const addSupplement = (uuid: string, data: any) => callApi(`/ipd/review/${uuid}/supplement`, { method: 'POST', body: JSON.stringify(data) })
 
 // ---- 审计 ----
-export const getAuditLog = (uuid: string) => callApi(`/dcp/review/${uuid}/audit-log`)
+export const getAuditLog = (uuid: string) => callApi(`/ipd/review/${uuid}/audit-log`)
 
 // ---- 催办 ----
 export const remindReview = (uuid: string, data: { target: 'reviewers' | 'resolution'; operator_uuid: string; operator_name?: string }) =>
-  callApi(`/dcp/review/${uuid}/remind`, { method: 'POST', body: JSON.stringify(data) })
+  callApi(`/ipd/review/${uuid}/remind`, { method: 'POST', body: JSON.stringify(data) })
 
 // ---- 状态机 ----
 export const transitionReview = (uuid: string, data: { target_state: 're_reviewing'; reason?: string }) =>
-  callApi(`/dcp/review/${uuid}/transition`, { method: 'POST', body: JSON.stringify(data) })
-export const getReviewState = (uuid: string) => callApi(`/dcp/review/${uuid}/state`)
-export const getReviewRounds = (uuid: string) => callApi(`/dcp/review/${uuid}/rounds`)
+  callApi(`/ipd/review/${uuid}/transition`, { method: 'POST', body: JSON.stringify(data) })
+export const getReviewState = (uuid: string) => callApi(`/ipd/review/${uuid}/state`)
+export const getReviewRounds = (uuid: string) => callApi(`/ipd/review/${uuid}/rounds`)
 
 // ---- 整改闭环 ----
-export const getRemediationIssues = (uuid: string) => callApi(`/dcp/review/${uuid}/remediation`)
-export const refreshRemediationStatus = (uuid: string) => callApi(`/dcp/review/${uuid}/remediation/refresh`, { method: 'POST' })
+export const getRemediationIssues = (uuid: string) => callApi(`/ipd/review/${uuid}/remediation`)
+export const refreshRemediationStatus = (uuid: string) => callApi(`/ipd/review/${uuid}/remediation/refresh`, { method: 'POST' })
 export const syncRemediationStatus = (uuid: string, items: Array<{ issue_uuid: string; status_name?: string; status_id?: string; category?: string | number }>) =>
-  callApi(`/dcp/review/${uuid}/remediation/sync`, { method: 'POST', body: JSON.stringify({ items }) })
+  callApi(`/ipd/review/${uuid}/remediation/sync`, { method: 'POST', body: JSON.stringify({ items }) })
 export const confirmRemediation = (uuid: string, data: { next_action: 're_review' }) =>
-  callApi(`/dcp/review/${uuid}/remediation/confirm`, { method: 'POST', body: JSON.stringify(data) })
+  callApi(`/ipd/review/${uuid}/remediation/confirm`, { method: 'POST', body: JSON.stringify(data) })
 
 // ---- Reviewer Profile ----
 export const listReviewerProfiles = (reviewType?: string) =>
-  callApi(`/dcp/reviewer-profiles${reviewType ? `?review_type=${reviewType}` : ''}`)
+  callApi(`/ipd/reviewer-profiles${reviewType ? `?review_type=${reviewType}` : ''}`)
 export const createReviewerProfile = (data: { profile_name: string; review_type: string; description?: string; role_assignments: { role_name: string; mode: 'single' | 'pool'; default_reviewer_uuid?: string; candidate_uuids?: string[] }[] }) =>
-  callApi('/dcp/reviewer-profile', { method: 'POST', body: JSON.stringify(data) })
+  callApi('/ipd/reviewer-profile', { method: 'POST', body: JSON.stringify(data) })
 export const getReviewerProfile = (profileId: string) =>
-  callApi(`/dcp/reviewer-profile/${profileId}`)
+  callApi(`/ipd/reviewer-profile/${profileId}`)
 export const updateReviewerProfile = (profileId: string, data: any) =>
-  callApi(`/dcp/reviewer-profile/${profileId}`, { method: 'PUT', body: JSON.stringify(data) })
+  callApi(`/ipd/reviewer-profile/${profileId}`, { method: 'PUT', body: JSON.stringify(data) })
 export const deleteReviewerProfile = (profileId: string) =>
-  callApi(`/dcp/reviewer-profile/${profileId}`, { method: 'DELETE' })
+  callApi(`/ipd/reviewer-profile/${profileId}`, { method: 'DELETE' })
 
 // ---- Project Binding ----
 export const listProjectBindings = (projectUuid?: string) =>
-  callApi(`/dcp/project-bindings${projectUuid ? `?project_uuid=${projectUuid}` : ''}`)
+  callApi(`/ipd/project-bindings${projectUuid ? `?project_uuid=${projectUuid}` : ''}`)
 export const upsertProjectBinding = (data: { project_uuid: string; profile_id: string; review_type: string }) =>
-  callApi('/dcp/project-binding', { method: 'POST', body: JSON.stringify(data) })
+  callApi('/ipd/project-binding', { method: 'POST', body: JSON.stringify(data) })
 export const deleteProjectBinding = (bindingId: string) =>
-  callApi(`/dcp/project-binding/${bindingId}`, { method: 'DELETE' })
+  callApi(`/ipd/project-binding/${bindingId}`, { method: 'DELETE' })
 
 // ---- Apply Profile to Review ----
 export const applyProfileToReview = (reviewUuid: string, profileId: string) =>
-  callApi(`/dcp/review/${reviewUuid}/apply-profile`, { method: 'POST', body: JSON.stringify({ profile_id: profileId }) })
+  callApi(`/ipd/review/${reviewUuid}/apply-profile`, { method: 'POST', body: JSON.stringify({ profile_id: profileId }) })

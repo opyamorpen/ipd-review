@@ -1,4 +1,4 @@
-# DCP 评审中心 v2 — AGENTS.md
+# IPD评审 v2 — AGENTS.md
 
 ONES 团队级 DCP/TR 评审插件。支持 DCP 阶段决策评审和 TR 技术评审、多人异步评审、关联工作项、不可覆盖决议快照和审计追溯。
 
@@ -32,9 +32,9 @@ npm run packup                 # 打包 .opk
 
 ## 技术栈
 
-- 前端：React 17 + TypeScript + Webpack（模块：dcp-review-tab、dcp-reviewer-workspace、dcp-sidebar 含子模块 dcp-template-config / dcp-review-overview、dcp-config-page、dcp-team-overview）
+- 前端：React 17 + TypeScript + Webpack（模块：ipd-review-tab、ipd-reviewer-workspace、ipd-sidebar 含子模块 ipd-template-config / ipd-review-overview、ipd-config-page、ipd-team-overview）
 - 后端：Node.js External API（backend/src/index.ts 4452 行 + task-event-handler.ts），47 个 API 端点
-- 存储：15 个 ONES Entity（dcp_base_config ~ dcp_checklist_result）
+- 存储：15 个 ONES Entity（ipd_base_config ~ ipd_checklist_result）
 - 平台：ONES Open Platform，plugin.yaml 声明 3 个 Ability（ProjectCustomComponent、SidebarMenu、TaskEventHandler）
 
 ## 目录与约定

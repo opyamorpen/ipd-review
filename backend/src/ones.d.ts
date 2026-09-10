@@ -5,14 +5,14 @@
  * DO NOT MODIFY MANUALLY
  */
 declare var ONESEntities: {
-    dcp_base_config: {
+    ipd_base_config: {
         attributes: {
             key?: string;
             value?: string;
         };
         indexes: null;
     };
-    dcp_phase_template: {
+    ipd_phase_template: {
         attributes: {
             phase_code?: string;
             phase_name?: string;
@@ -24,7 +24,7 @@ declare var ONESEntities: {
         };
         indexes: null;
     };
-    dcp_material_template: {
+    ipd_material_template: {
         attributes: {
             material_name?: string;
             applicable_phases?: string;
@@ -35,7 +35,7 @@ declare var ONESEntities: {
         };
         indexes: null;
     };
-    dcp_indicator_template: {
+    ipd_indicator_template: {
         attributes: {
             indicator_name?: string;
             applicable_phases?: string;
@@ -48,7 +48,7 @@ declare var ONESEntities: {
         };
         indexes: null;
     };
-    dcp_reviewer_role: {
+    ipd_reviewer_role: {
         attributes: {
             role_name?: string;
             must_vote?: boolean;
@@ -58,7 +58,7 @@ declare var ONESEntities: {
         };
         indexes: null;
     };
-    dcp_review: {
+    ipd_review: {
         attributes: {
             review_uuid?: string;
             project_uuid?: string;
@@ -92,7 +92,7 @@ declare var ONESEntities: {
         };
         indexes: null;
     };
-    dcp_review_material: {
+    ipd_review_material: {
         attributes: {
             review_uuid?: string;
             template_id?: string;
@@ -113,7 +113,7 @@ declare var ONESEntities: {
         };
         indexes: null;
     };
-    dcp_review_indicator: {
+    ipd_review_indicator: {
         attributes: {
             review_uuid?: string;
             template_id?: string;
@@ -131,7 +131,7 @@ declare var ONESEntities: {
         };
         indexes: null;
     };
-    dcp_review_reviewer: {
+    ipd_review_reviewer: {
         attributes: {
             review_uuid?: string;
             reviewer_uuid?: string;
@@ -147,7 +147,7 @@ declare var ONESEntities: {
         };
         indexes: null;
     };
-    dcp_linked_issue: {
+    ipd_linked_issue: {
         attributes: {
             review_uuid?: string;
             issue_uuid?: string;
@@ -173,7 +173,7 @@ declare var ONESEntities: {
         };
         indexes: null;
     };
-    dcp_phase_guard: {
+    ipd_phase_guard: {
         attributes: {
             guard_key?: string;
             project_uuid?: string;
@@ -186,7 +186,7 @@ declare var ONESEntities: {
         };
         indexes: null;
     };
-    dcp_resolution: {
+    ipd_resolution: {
         attributes: {
             review_uuid?: string;
             resolution_result?: string;
@@ -207,7 +207,7 @@ declare var ONESEntities: {
         };
         indexes: null;
     };
-    dcp_supplement: {
+    ipd_supplement: {
         attributes: {
             review_uuid?: string;
             note_type?: string;
@@ -218,7 +218,7 @@ declare var ONESEntities: {
         };
         indexes: null;
     };
-    dcp_audit_log: {
+    ipd_audit_log: {
         attributes: {
             review_uuid?: string;
             timestamp?: number;
@@ -230,7 +230,7 @@ declare var ONESEntities: {
         };
         indexes: null;
     };
-    dcp_checklist_item: {
+    ipd_checklist_item: {
         attributes: {
             phase_code?: string;
             role_name?: string;
@@ -240,7 +240,7 @@ declare var ONESEntities: {
         };
         indexes: null;
     };
-    dcp_checklist_result: {
+    ipd_checklist_result: {
         attributes: {
             review_uuid?: string;
             template_id?: string;
@@ -250,7 +250,7 @@ declare var ONESEntities: {
         };
         indexes: null;
     };
-    dcp_reviewer_profile: {
+    ipd_reviewer_profile: {
         attributes: {
             profile_name?: string;
             review_type?: string;
@@ -262,7 +262,7 @@ declare var ONESEntities: {
         };
         indexes: null;
     };
-    dcp_project_binding: {
+    ipd_project_binding: {
         attributes: {
             project_uuid?: string;
             profile_id?: string;

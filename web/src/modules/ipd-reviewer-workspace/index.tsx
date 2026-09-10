@@ -8,14 +8,14 @@ import {
 } from '../../project-issue-types'
 
 // ============================================================
-// 复用 dcp-review-tab 的 API 层
+// 复用 ipd-review-tab 的 API 层
 // ============================================================
 let _teamUUID = ''
 function tu() { if (!_teamUUID) _teamUUID = getTeamUUID(); return _teamUUID }
 
 async function callApi<T = any>(endpoint: string, method = 'GET', body?: any): Promise<T> {
  const url = `/project/api/project/team/${tu()}${endpoint}`
- const opts: any = { method, credentials: 'include', headers: { 'Content-Type': 'application/json', 'Ones-Plugin-Id': '709xehle' } }
+ const opts: any = { method, credentials: 'include', headers: { 'Content-Type': 'application/json', 'Ones-Plugin-Id': 'ipdrev01' } }
  if (body) opts.body = JSON.stringify(body)
  const res = await fetch(url, opts)
  if (!res.ok) {
@@ -222,7 +222,7 @@ const App: React.FC = () => {
  meUuid = me.uuid || ''
  }
  if (meUuid) {
- const data = await callApi('/dcp/reviews/my')
+ const data = await callApi('/ipd/reviews/my')
  const allReviews = [...(data.review_pending || data.pending || []), ...(data.resolution_pending || []), ...(data.done || [])]
  const projectNameMap = await resolveProjectNames(allReviews)
  const enrich = (arr: any[]) => arr.map(r => ({ ...r, project_name: projectNameMap[r.project_uuid] || r.project_name || r.project_uuid }))
@@ -236,7 +236,7 @@ const App: React.FC = () => {
  const rid = params.get('review_uuid')
  if (rid) {
  setDirectLink(true)
- const data = await callApi(`/dcp/review/${rid}`)
+ const data = await callApi(`/ipd/review/${rid}`)
  setSelected(data)
  }
  } catch {}
@@ -247,7 +247,7 @@ const App: React.FC = () => {
  async function openReview(rv: any, mode?: 'review' | 'resolution' | 'readonly') {
  setLoading(true)
  try {
- const data = await callApi(`/dcp/review/${rv.review_uuid}`)
+ const data = await callApi(`/ipd/review/${rv.review_uuid}`)
  setSelected(data)
  if (mode) setDetailMode(mode)
  } catch (e: any) { setMsg(`加载评审详情失败: ${e.message}`) }
@@ -266,7 +266,7 @@ const App: React.FC = () => {
  mode={detailMode}
  onBack={() => { setSelected(null); setDirectLink(false); setDetailMode('review'); init() }}
  onRefresh={async () => {
- const data = await callApi(`/dcp/review/${selected.review.review_uuid}`)
+ const data = await callApi(`/ipd/review/${selected.review.review_uuid}`)
  setSelected(data)
  }}
  />
@@ -520,7 +520,7 @@ const ReviewerWorkspace: React.FC<{
  // 加载当前评审类型的决议规则配置 + 角色列表 + 整改项类型
  const _rvReviewType = (rv.review_type || 'dcp')
  useEffect(() => {
-   callApi('/dcp/config').then((c: any) => {
+   callApi('/ipd/config').then((c: any) => {
      const rules = c.resolution_rule_config || {}
      setResolutionRule(rules[_rvReviewType] || null)
      setConfigRoles((c.roles || []).filter((r: any) => (r.review_type || 'dcp') === _rvReviewType))
@@ -677,7 +677,7 @@ const canPublishResolution = canPublish && rv.status === 'reviewing' && resoluti
  setOpinionMsg('')
  setSubmittingOpinion(true)
  try {
- await callApi(`/dcp/review/${rv.review_uuid}/opinion`, 'POST', opinionForm)
+ await callApi(`/ipd/review/${rv.review_uuid}/opinion`, 'POST', opinionForm)
  setOpinionToast('评审意见已提交')
  setTimeout(() => setOpinionToast(''), 3000)
  onRefresh()
@@ -713,7 +713,7 @@ const canPublishResolution = canPublish && rv.status === 'reviewing' && resoluti
  }
  } catch {}
  if (syncItems.length === 0) return false
- await callApi(`/dcp/review/${rv.review_uuid}/remediation/sync`, 'POST', { items: syncItems })
+ await callApi(`/ipd/review/${rv.review_uuid}/remediation/sync`, 'POST', { items: syncItems })
  return true
  }
 
@@ -735,7 +735,7 @@ const canPublishResolution = canPublish && rv.status === 'reviewing' && resoluti
  try {
  // 发布决议前先同步整改项状态，确保快照记录的状态是最新的
  await syncRemediationFromBrowser()
- await callApi(`/dcp/review/${rv.review_uuid}/publish-resolution`, 'POST', {
+ await callApi(`/ipd/review/${rv.review_uuid}/publish-resolution`, 'POST', {
  final_conclusion: resolutionForm.final_conclusion,
  condition_notes: resolutionForm.condition_notes,
  publisher_uuid: currentUser.uuid || '',
@@ -753,7 +753,7 @@ const canPublishResolution = canPublish && rv.status === 'reviewing' && resoluti
  }
 
  function downloadMaterial(templateId: string) {
- callApi(`/dcp/review/${rv.review_uuid}/material/${templateId}/download-url`).then((r: any) => {
+ callApi(`/ipd/review/${rv.review_uuid}/material/${templateId}/download-url`).then((r: any) => {
  if (!r.url) return
  // 用隐藏 <a download> 在当前窗口触发下载，不开新标签
  const a = document.createElement('a')
@@ -767,7 +767,7 @@ const canPublishResolution = canPublish && rv.status === 'reviewing' && resoluti
  }
 
  function downloadAttachment(objectKey: string) {
- callApi(`/dcp/review/${rv.review_uuid}/material-attachment/download-url?object_key=${encodeURIComponent(objectKey)}`).then((r: any) => {
+ callApi(`/ipd/review/${rv.review_uuid}/material-attachment/download-url?object_key=${encodeURIComponent(objectKey)}`).then((r: any) => {
  if (!r.url) return
  const a = document.createElement('a')
  a.href = r.url
@@ -782,7 +782,7 @@ const canPublishResolution = canPublish && rv.status === 'reviewing' && resoluti
  async function previewAttachment(objectKey: string, fileName: string) {
  setPreviewLoading(true)
  try {
- const r: any = await callApi(`/dcp/review/${rv.review_uuid}/material-attachment/preview?object_key=${encodeURIComponent(objectKey)}&file_name=${encodeURIComponent(fileName)}`)
+ const r: any = await callApi(`/ipd/review/${rv.review_uuid}/material-attachment/preview?object_key=${encodeURIComponent(objectKey)}&file_name=${encodeURIComponent(fileName)}`)
  if (r.content) {
  const previewable = ['application/pdf', 'image/png', 'image/jpeg', 'image/gif', 'image/bmp', 'image/webp', 'image/svg+xml', 'text/plain', 'text/csv']
  if (previewable.includes(r.mime)) {
@@ -799,7 +799,7 @@ const canPublishResolution = canPublish && rv.status === 'reviewing' && resoluti
  async function previewMaterial(templateId: string, fileName: string) {
  setPreviewLoading(true)
  try {
- const r: any = await callApi(`/dcp/review/${rv.review_uuid}/material/${templateId}/preview`)
+ const r: any = await callApi(`/ipd/review/${rv.review_uuid}/material/${templateId}/preview`)
  if (r.content) {
  const previewable = ['application/pdf', 'image/png', 'image/jpeg', 'image/gif', 'image/bmp', 'image/webp', 'image/svg+xml', 'text/plain', 'text/csv']
  if (previewable.includes(r.mime)) {
@@ -889,7 +889,7 @@ const canPublishResolution = canPublish && rv.status === 'reviewing' && resoluti
  if (task?.uuid) {
  // 关联到评审单（后端操作），用 tasks/add3 返回的 issue_type_name
  try {
- await callApi(`/dcp/review/${rv.review_uuid}/link-issue`, 'POST', {
+ await callApi(`/ipd/review/${rv.review_uuid}/link-issue`, 'POST', {
  issue_uuid: task.uuid,
  issue_number: task.display_id || task.uuid,
  issue_title: createIssueForm.title,
@@ -934,7 +934,7 @@ const canPublishResolution = canPublish && rv.status === 'reviewing' && resoluti
  } catch (e: any) {
  // 回退：后端 createIssue（会尝试多条内部路径，失败返回 fallback_url）
  try {
- await callApi(`/dcp/review/${rv.review_uuid}/create-issue`, 'POST', {
+ await callApi(`/ipd/review/${rv.review_uuid}/create-issue`, 'POST', {
    title: createIssueForm.title,
    project_uuid: realProjectUuid,
    issue_type_scope_uuid: scopeUuid,
@@ -1539,11 +1539,11 @@ const ChecklistPanel: React.FC<{
  setErrMsg('')
  try {
  const resp = await fetch(
- `/project/api/project/team/${getTeamUUID()}/dcp/review/${reviewUuid}/checklist`,
+ `/project/api/project/team/${getTeamUUID()}/ipd/review/${reviewUuid}/checklist`,
  {
  method: 'POST',
  credentials: 'include',
- headers: { 'Content-Type': 'application/json', 'Ones-Plugin-Id': '709xehle' },
+ headers: { 'Content-Type': 'application/json', 'Ones-Plugin-Id': 'ipdrev01' },
  body: JSON.stringify({ template_id: templateId, status, reviewer_uuid: currentUser.uuid }),
  }
  )

@@ -4,12 +4,12 @@ import yaml from 'js-yaml'
 
 const backend = fs.readFileSync('backend/src/index.ts', 'utf8')
 const plugin = yaml.load(fs.readFileSync('config/plugin.yaml', 'utf8'))
-const projectPage = fs.readFileSync('web/src/modules/dcp-review-tab/index.tsx', 'utf8')
-const workspace = fs.readFileSync('web/src/modules/dcp-reviewer-workspace/index.tsx', 'utf8')
-const projectApi = fs.readFileSync('web/src/modules/dcp-review-tab/api.ts', 'utf8')
+const projectPage = fs.readFileSync('web/src/modules/ipd-review-tab/index.tsx', 'utf8')
+const workspace = fs.readFileSync('web/src/modules/ipd-reviewer-workspace/index.tsx', 'utf8')
+const projectApi = fs.readFileSync('web/src/modules/ipd-review-tab/api.ts', 'utf8')
 const projectIssueTypes = fs.readFileSync('web/src/project-issue-types.ts', 'utf8')
-const remediationPanel = fs.readFileSync('web/src/modules/dcp-review-tab/RemediationPanel.tsx', 'utf8')
-const configPage = fs.readFileSync('web/src/modules/dcp-config-page/index.tsx', 'utf8')
+const remediationPanel = fs.readFileSync('web/src/modules/ipd-review-tab/RemediationPanel.tsx', 'utf8')
+const configPage = fs.readFileSync('web/src/modules/ipd-config-page/index.tsx', 'utf8')
 
 const transitionHandler = backend.slice(
   backend.indexOf('export async function transitionReview'),
@@ -125,11 +125,11 @@ assert.match(remediationPanel, /disabled=\{creationBlocked\}/)
 assert.match(configPage, /remediation_issue_type_uuid: remediationIssueTypeUuid/)
 
 const entities = plugin.storage.entities
-const issueEntity = entities.find(entity => entity.name === 'dcp_linked_issue')
+const issueEntity = entities.find(entity => entity.name === 'ipd_linked_issue')
 assert.ok(issueEntity.attributes.issue_status_verification)
 assert.ok(issueEntity.attributes.issue_status_category)
-assert.ok(entities.some(entity => entity.name === 'dcp_phase_guard'))
-const reviewEntity = entities.find(entity => entity.name === 'dcp_review')
+assert.ok(entities.some(entity => entity.name === 'ipd_phase_guard'))
+const reviewEntity = entities.find(entity => entity.name === 'ipd_review')
 assert.equal(reviewEntity.attributes.canonical_project_uuid, undefined)
 assert.equal(reviewEntity.attributes.phase_dependencies_snapshot_json, undefined)
 assert.match(backend, /resolution_rule_json:[\s\S]*frozenRuleJson/)

@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import ReactDOM from 'react-dom'
-import { apiGet, DcpApiError, getTeamUUID } from '../../api'
-import { ReviewDetail } from '../dcp-review-tab'
-import * as reviewApi from '../dcp-review-tab/api'
+import { apiGet, IpdApiError, getTeamUUID } from '../../api'
+import { ReviewDetail } from '../ipd-review-tab'
+import * as reviewApi from '../ipd-review-tab/api'
 
 // ============================================================
 // 前端兜底：浏览器侧补查项目名称（保留原有逻辑）
@@ -354,7 +354,7 @@ const App: React.FC = () => {
     setLoading(true); setStats(null)
     try {
       const qs = s ? `?start_date=${s}&end_date=${e}` : ''
-      const data = await apiGet(`/dcp/stats${qs}`)
+      const data = await apiGet(`/ipd/stats${qs}`)
       // 前端解析评审人真实姓名（后端 OPFetch 调 ONES 内部 API 404）
       const tu = getTeamUUID()
       if (tu && data.reviewers?.list?.length) {
@@ -376,7 +376,7 @@ const App: React.FC = () => {
       }
       setStats(data)
       // 同时加载全部评审用于穿透
-      const revData = await apiGet('/dcp/reviews/team')
+      const revData = await apiGet('/ipd/reviews/team')
       const rawReviews = revData.reviews || []
       const fixedReviews = tu ? await hydrateProjectNames(tu, rawReviews) : rawReviews
       setAllReviews(fixedReviews)

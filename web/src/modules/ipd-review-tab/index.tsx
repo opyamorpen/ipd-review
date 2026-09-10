@@ -44,10 +44,10 @@ const RESOLUTION_COLORS: Record<string, string> = {
 }
 
 // 构建评审单直链（指向评审总览模块，带 review_uuid 参数）
-// dcp-review-tab 运行在 /project/ 页面内，window.location 无法提取插件路径
+// ipd-review-tab 运行在 /project/ 页面内，window.location 无法提取插件路径
 // 从已加载的 script 标签 src 中提取插件基础路径
 function buildReviewLink(reviewUuid: string): string {
-  const APP_ID = '709xehle'
+  const APP_ID = 'ipdrev01'
   try {
     // 从页面中已加载的 JS bundle URL 提取插件路径
     const scripts = document.querySelectorAll('script[src*="dev_' + APP_ID + '"]')
@@ -55,12 +55,12 @@ function buildReviewLink(reviewUuid: string): string {
       const src = (scripts[i] as HTMLScriptElement).src
       const m = src.match(/^(https?:\/\/[^/]+\/plugin\/[^/]+\/[^/]+\/dev_[^/]+\/[^/]+)\//)
       if (m) {
-        return `${m[1]}/modules/dcp-sidebar/dcp-review-overview/index.html?review_uuid=${reviewUuid}`
+        return `${m[1]}/modules/ipd-sidebar/ipd-review-overview/index.html?review_uuid=${reviewUuid}`
       }
     }
   } catch {}
   // 降级：硬编码已知常量（版本号可能不准）
-  return `https://demo688.ones.pro/plugin/MVUtevnf/7xrUyuCf/dev_${APP_ID}/modules/dcp-sidebar/dcp-review-overview/index.html?review_uuid=${reviewUuid}`
+  return `https://demo688.ones.pro/plugin/MVUtevnf/7xrUyuCf/dev_${APP_ID}/modules/ipd-sidebar/ipd-review-overview/index.html?review_uuid=${reviewUuid}`
 }
 
 async function copyReviewLink(reviewNumber: string, reviewUuid: string): Promise<boolean> {
@@ -229,7 +229,7 @@ const App: React.FC = () => {
         .catch(() => {})
     }
     // 检查新建权限
-    checkPermission('dcp_create_review').then(p => setHasCreatePerm(p))
+    checkPermission('ipd_create_review').then(p => setHasCreatePerm(p))
   }, [])
 
   async function loadList(puid: string, rvType?: string) {
@@ -3267,7 +3267,7 @@ const IPDFlowChart: React.FC<{
           const topY = stageIdx >= 0 ? stageTopY(stageIdx) : bandCenterY - 30
           const bottomY = stageIdx >= 0 ? stageBottomY(stageIdx) : bandCenterY + 30
           return (
-            <g key={`dcp-${i}`}>
+            <g key={`ipd-${i}`}>
               <line x1={x} y1={DCP_DIAMOND_Y + DIAMOND_S} x2={x} y2={topY} stroke={color} strokeWidth="1.5"
                 strokeDasharray={status === 'pending' ? '3,3' : 'none'} opacity={status === 'pending' ? 0.35 : 0.65} />
               <line x1={x} y1={bottomY} x2={x} y2={bandCenterY + 26} stroke={color} strokeWidth="1"

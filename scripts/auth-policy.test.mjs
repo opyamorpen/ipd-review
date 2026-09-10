@@ -4,16 +4,16 @@ import yaml from 'js-yaml'
 
 const plugin = yaml.load(fs.readFileSync('config/plugin.yaml', 'utf8'))
 const backend = fs.readFileSync('backend/src/index.ts', 'utf8')
-const projectPage = fs.readFileSync('web/src/modules/dcp-review-tab/index.tsx', 'utf8')
-const reviewerWorkspace = fs.readFileSync('web/src/modules/dcp-reviewer-workspace/index.tsx', 'utf8')
+const projectPage = fs.readFileSync('web/src/modules/ipd-review-tab/index.tsx', 'utf8')
+const reviewerWorkspace = fs.readFileSync('web/src/modules/ipd-reviewer-workspace/index.tsx', 'utf8')
 
 const expectedPolicies = {
-  apiGetDcpConfig: 'identity',
+  apiGetIpdConfig: 'identity',
   apiSavePluginConfig: 'admin',
   apiCreateReview: 'create',
   apiGetReviewDetail: 'review-read',
   apiListReviewsByProject: 'project-read',
-  apiGetDcpReviews: 'overview',
+  apiGetIpdReviews: 'overview',
   apiListMyReviews: 'self',
   apiListTeamReviews: 'overview',
   apiStartReview: 'review-creator',
@@ -49,7 +49,7 @@ const expectedPolicies = {
   apiRefreshRemediationStatus: 'review-creator-or-publisher',
   apiSyncRemediationStatus: 'review-creator-or-publisher',
   apiConfirmRemediation: 'review-publisher',
-  apiGetDcpStats: 'overview',
+  apiGetIpdStats: 'overview',
   apiListReviewerProfiles: 'admin',
   apiCreateReviewerProfile: 'admin',
   apiGetReviewerProfile: 'admin',

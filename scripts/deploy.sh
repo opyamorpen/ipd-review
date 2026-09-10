@@ -1,5 +1,5 @@
 #!/bin/bash
-# DCP评审中心插件自动升级脚本
+# IPD评审插件自动升级脚本
 # 用法: ./scripts/deploy.sh <opk文件路径>
 # 环境变量: ONES_BASE_URL, ONES_EMAIL, ONES_PASSWORD, ONES_TEAM_UUID, ONES_ORG_UUID
 #
@@ -40,10 +40,10 @@ EMAIL="${ONES_EMAIL:?请设置 ONES_EMAIL}"
 PASSWORD="${ONES_PASSWORD:?请设置 ONES_PASSWORD}"
 TEAM_UUID="${ONES_TEAM_UUID:-7xrUyuCf}"
 ORG_UUID="${ONES_ORG_UUID:-MVUtevnf}"
-APP_ID="${ONES_APP_ID:-709xehle}"
+APP_ID="${ONES_APP_ID:-ipdrev01}"
 PLUGIN_ID="dev_${APP_ID}"
 
-echo "=== DCP评审中心插件自动升级 ==="
+echo "=== IPD评审插件自动升级 ==="
 echo "环境: $BASE_URL"
 echo "团队: $TEAM_UUID"
 echo "文件: $OPK_FILE"
@@ -121,7 +121,7 @@ RUNTIME_OK=false
 for i in $(seq 1 20); do
   sleep 5
   CONFIG_HTTP=$(curl -s -o /tmp/ones_config_resp.txt -w "%{http_code}" \
-    "$BASE_URL/project/api/project/team/$TEAM_UUID/dcp/config" \
+    "$BASE_URL/project/api/project/team/$TEAM_UUID/ipd/config" \
     -H "Ones-Check-Id: $TEAM_UUID" \
     -H "Ones-Check-Point: team" \
     -H "Ones-Plugin-Id: $PLUGIN_ID" \
@@ -192,7 +192,7 @@ fi
 # 5. 反查业务功能：reviews API
 echo "[5/5] 验证业务功能..."
 REVIEWS_HTTP=$(curl -s -o /tmp/ones_reviews_resp.txt -w "%{http_code}" \
-  "$BASE_URL/project/api/project/team/$TEAM_UUID/dcp/reviews/team" \
+  "$BASE_URL/project/api/project/team/$TEAM_UUID/ipd/reviews/team" \
   -H "Ones-Check-Id: $TEAM_UUID" \
   -H "Ones-Check-Point: team" \
   -H "Ones-Plugin-Id: $PLUGIN_ID" \
@@ -218,7 +218,7 @@ rm -f /tmp/ones_cookies.txt /tmp/ones_headers.txt /tmp/ones_config_resp.txt /tmp
 echo ""
 echo "=== 部署验证完成 ==="
 echo "环境: $BASE_URL"
-echo "插件: DCP评审中心 ($APP_ID)"
+echo "插件: IPD评审 ($APP_ID)"
 echo "版本变化: $CURRENT_VERSION -> $INSTALLED_VERSION"
 echo "Runtime 健康检查: PASSED"
 echo "安装版本反查: PASSED ($INSTALLED_VERSION = $OPK_VERSION)"

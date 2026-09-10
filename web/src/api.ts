@@ -1,5 +1,5 @@
 // ============================================================
-// DCP 评审中心 — 共享 API 层 v2
+// IPD评审 — 共享 API 层 v2
 // 每次请求动态获取 teamUUID / appID，不缓存到模块变量
 // ============================================================
 
@@ -93,7 +93,7 @@ export function getAppID(): string {
     if (r.app) return r.app
   }
 
-  return 'dev_709xehle'
+  return 'dev_ipdrev01'
 }
 
 // tools/getAppID() 返回的是文件路径中的 app_id（含 dev_ 前缀），
@@ -129,9 +129,9 @@ async function fetchRealInstanceId(): Promise<string> {
     // plugin/list 端点不返回 mode:org + ProjectCustomComponent 插件
     // 实例 ID 在插件安装后固定不变，从已知映射获取
     const appId = getApiAppID()
-    // 已知映射：app_id 709xehle ↔ instance_id gieJW9p2
+    // 已知映射：app_id ipdrev01 ↔ instance_id gieJW9p2
     const KNOWN_INSTANCES: Record<string, string> = {
-      '709xehle': 'gieJW9p2',
+      'ipdrev01': 'gieJW9p2',
     }
     if (KNOWN_INSTANCES[appId]) {
       _instanceId = KNOWN_INSTANCES[appId]
@@ -233,7 +233,7 @@ export async function checkPermission(permField: string): Promise<boolean> {
       }
     )
     if (!res.ok) {
-      console.warn(`[DCP] Permission check failed: ${res.status} for ${permField}`)
+      console.warn(`[IPD] Permission check failed: ${res.status} for ${permField}`)
       return false
     }
     const j = await res.json()
@@ -243,18 +243,18 @@ export async function checkPermission(permField: string): Promise<boolean> {
     }
     return false
   } catch (err) {
-    console.warn(`[DCP] Permission check error for ${permField}:`, err)
+    console.warn(`[IPD] Permission check error for ${permField}:`, err)
     return false
   }
 }
 
 // ---- API 请求 ----
 
-export class DcpApiError extends Error {
+export class IpdApiError extends Error {
   status: number
   constructor(message: string, status: number) {
     super(message)
-    this.name = 'DcpApiError'
+    this.name = 'IpdApiError'
     this.status = status
   }
 }
@@ -275,7 +275,7 @@ async function readApiError(res: Response): Promise<string> {
 function buildUrl(endpoint: string): string {
   const tu = getTeamUUID()
   if (!tu) {
-    throw new DcpApiError(
+    throw new IpdApiError(
       '未获取到团队 UUID，请从 ONES 插件入口重新进入页面。',
       0
     )
@@ -292,7 +292,7 @@ export async function apiGet(endpoint: string): Promise<any> {
     headers: { 'Ones-Plugin-Id': getApiAppID() },
   })
   if (!res.ok) {
-    throw new DcpApiError(await readApiError(res), res.status)
+    throw new IpdApiError(await readApiError(res), res.status)
   }
   const json = await res.json()
   // external API 响应包裹在 data 中，backend 返回包裹在 body 中
@@ -308,7 +308,7 @@ export async function apiPost(endpoint: string, body: any): Promise<any> {
     body: JSON.stringify(body),
   })
   if (!res.ok) {
-    throw new DcpApiError(await readApiError(res), res.status)
+    throw new IpdApiError(await readApiError(res), res.status)
   }
   const json = await res.json()
   // external API 响应包裹在 data 中，backend 返回包裹在 body 中
@@ -323,7 +323,7 @@ export async function apiDelete(endpoint: string): Promise<any> {
     headers: { 'Ones-Plugin-Id': getApiAppID() },
   })
   if (!res.ok) {
-    throw new DcpApiError(await readApiError(res), res.status)
+    throw new IpdApiError(await readApiError(res), res.status)
   }
   const json = await res.json()
   return json.body || json.data || json
@@ -331,7 +331,7 @@ export async function apiDelete(endpoint: string): Promise<any> {
 
 // ---- Reviewer Profile / Project Binding ----
 export const upsertProjectBinding = (data: { project_uuid: string; profile_id: string; review_type: string }) =>
-  apiPost('/dcp/project-binding', data)
+  apiPost('/ipd/project-binding', data)
 
 export const deleteProjectBinding = (bindingId: string) =>
-  apiDelete(`/dcp/project-binding/${bindingId}`)
+  apiDelete(`/ipd/project-binding/${bindingId}`)

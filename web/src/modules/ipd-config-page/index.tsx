@@ -87,9 +87,9 @@ const App: React.FC = () => {
  if (showLoading) setLoading(true)
  try {
  const [data, profileData, bindingData] = await Promise.all([
- apiGet('/dcp/config'),
- apiGet('/dcp/reviewer-profiles'),
- apiGet('/dcp/project-bindings'),
+ apiGet('/ipd/config'),
+ apiGet('/ipd/reviewer-profiles'),
+ apiGet('/ipd/project-bindings'),
  ])
  // 后端 getPluginConfig 返回 { config, phases, materials, indicators, roles }
  // 兼容旧数据：拆分逗号分隔的 resolution_options，默认 dependencies
@@ -143,7 +143,7 @@ const App: React.FC = () => {
    remediation_issue_type_uuid: remediationIssueTypeUuid,
  },
  }
- const res = await apiPost('/dcp/config', body)
+ const res = await apiPost('/ipd/config', body)
  if (res.error) { setMessage('保存失败: ' + res.error) }
  else { setMessage('配置已保存。'); setEditing(false) }
  } catch (err: any) { setMessage('保存失败: ' + err.message) }
@@ -1113,7 +1113,7 @@ const ReviewerProfilesPanel: React.FC<{
         })).filter((u: any) => u.uuid))
       })
       .catch(() => {})
-    void fetch(`/project/api/project/team/${tu}/items/graphql?t=dcp_projects`, {
+    void fetch(`/project/api/project/team/${tu}/items/graphql?t=ipd_projects`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -1222,13 +1222,13 @@ const ReviewerProfilesPanel: React.FC<{
         role_assignments,
       }
       const url = editingProfile._key === 'new'
-        ? `/project/api/project/team/${tu}/dcp/reviewer-profile`
-        : `/project/api/project/team/${tu}/dcp/reviewer-profile/${editingProfile._key}`
+        ? `/project/api/project/team/${tu}/ipd/reviewer-profile`
+        : `/project/api/project/team/${tu}/ipd/reviewer-profile/${editingProfile._key}`
       const method = editingProfile._key === 'new' ? 'POST' : 'PUT'
       const res = await fetch(url, {
         method,
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json', 'Ones-Plugin-Id': '709xehle' },
+        headers: { 'Content-Type': 'application/json', 'Ones-Plugin-Id': 'ipdrev01' },
         body: JSON.stringify(body),
       })
       const data = await res.json()
@@ -1251,10 +1251,10 @@ const ReviewerProfilesPanel: React.FC<{
     if (!confirm('确定删除此 Profile？')) return
     try {
       const tu = getTeamUUID()
-      const res = await fetch(`/project/api/project/team/${tu}/dcp/reviewer-profile/${pid}`, {
+      const res = await fetch(`/project/api/project/team/${tu}/ipd/reviewer-profile/${pid}`, {
         method: 'DELETE',
         credentials: 'include',
-        headers: { 'Ones-Plugin-Id': '709xehle' },
+        headers: { 'Ones-Plugin-Id': 'ipdrev01' },
       })
       const data = await res.json()
       const body = data.body || data
