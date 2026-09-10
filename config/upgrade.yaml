@@ -1,0 +1,8 @@
+#Indicates the processing rules for plugin workspace file conflicts. Enumeration value [save_new, save_old]:
+#   save_old, save the old file when the old file conflicts with the new file；
+#   save_new，which contrary to the save_old.
+workspace:
+  rule: save_new
+  #Array of regular expressions, expressing files that are not in default rules.
+  exclude:
+#  - example.txt

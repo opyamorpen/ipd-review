@@ -1,0 +1,13 @@
+{
+  "name": "node-plugin-template-backend",
+  "version": "1.0.0",
+  "description": "node.js 插件模版。",
+  "main": "dist/index.js",
+  "private": true,
+  "scripts": {
+    "lint": "tsc --noEmit && eslint \"src/**/*.{js,ts}\" --quiet --fix"
+  },
+  "dependencies": {
+    "@ones-op/node-ability": "1.0.100"
+  }
+}

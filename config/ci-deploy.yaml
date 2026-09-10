@@ -1,0 +1,11 @@
+# Configuration example:
+
+# default:
+#   host: ''
+#   username: ''
+#   password: ''
+#   ones-check-id: ''
+#   ones-check-point: ''
+#   ones-plugin-id: ''
+#   organization_uuid: ''
+#   team_uuid: ''
