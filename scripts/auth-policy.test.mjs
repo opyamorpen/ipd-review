@@ -5,7 +5,10 @@ import yaml from 'js-yaml'
 const plugin = yaml.load(fs.readFileSync('config/plugin.yaml', 'utf8'))
 const backend = fs.readFileSync('backend/src/index.ts', 'utf8')
 const projectPage = fs.readFileSync('web/src/modules/ipd-review-tab/index.tsx', 'utf8')
-const reviewerWorkspace = fs.readFileSync('web/src/modules/ipd-reviewer-workspace/index.tsx', 'utf8')
+const reviewerWorkspace = fs.readFileSync(
+  'web/src/modules/ipd-reviewer-workspace/index.tsx',
+  'utf8',
+)
 
 const expectedPolicies = {
   apiGetIpdConfig: 'identity',
@@ -61,17 +64,22 @@ const expectedPolicies = {
   apiApplyProfileToReview: 'review-create-creator',
 }
 
-const externalApis = plugin.apis.filter(api => api.type === 'external')
+const externalApis = plugin.apis.filter((api) => api.type === 'external')
 assert.equal(externalApis.length, Object.keys(expectedPolicies).length)
-assert.equal(externalApis.some(api => api.url.includes('/debug/')), false)
+assert.equal(
+  externalApis.some((api) => api.url.includes('/debug/')),
+  false,
+)
 assert.deepEqual(
-  new Set(externalApis.map(api => api.function)),
+  new Set(externalApis.map((api) => api.function)),
   new Set(Object.keys(expectedPolicies)),
 )
 
 const actualPolicies = Object.fromEntries(
-  [...backend.matchAll(/export const (api\w+) = withAuthorization\('([^']+)'/g)]
-    .map(match => [match[1], match[2]]),
+  [...backend.matchAll(/export const (api\w+) = withAuthorization\('([^']+)'/g)].map((match) => [
+    match[1],
+    match[2],
+  ]),
 )
 assert.deepEqual(actualPolicies, expectedPolicies)
 
@@ -89,6 +97,6 @@ const myReviewsHandler = backend.slice(
 assert.match(myReviewsHandler, /const reviewerUuid = getOperator\(req\)/)
 assert.equal(myReviewsHandler.includes('reviewer_uuid='), false)
 assert.match(projectPage, /\[hasCreatePerm, setHasCreatePerm\] = useState\(false\)/)
-assert.match(reviewerWorkspace, /callApi\('\/dcp\/reviews\/my'\)/)
+assert.match(reviewerWorkspace, /callApi\('\/ipd\/reviews\/my'\)/)
 
 console.log(`Authorization policy coverage verified for ${externalApis.length} external APIs.`)

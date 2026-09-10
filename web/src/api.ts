@@ -29,7 +29,9 @@ export function getTeamUUID(): string {
       const h = getHeader(env.request.headers, 'Ones-Check-Id')
       if (h) return h
     }
-  } catch { /* next */ }
+  } catch {
+    /* next */
+  }
 
   // 2. __ONES_MF_ENV__ 直接字段
   try {
@@ -37,25 +39,39 @@ export function getTeamUUID(): string {
     if (env.teamUUID) return env.teamUUID
     if (env.team_uuid) return env.team_uuid
     if (env.contextStore?.teamInfo?.uuid) return env.contextStore.teamInfo.uuid
-  } catch { /* next */ }
+  } catch {
+    /* next */
+  }
 
   // 3. @ones-op/store contextStore
   try {
     const store = (window as any).__ONES_STORE__
     const uuid = store?.getState?.()?.contextStore?.teamInfo?.uuid
     if (uuid) return uuid
-  } catch { /* next */ }
+  } catch {
+    /* next */
+  }
 
   // 4. 插件资源路径（URL / scripts）
   {
     const urls: string[] = []
-    try { urls.push(window.location.href) } catch {}
-    try { urls.push(window.location.pathname) } catch {}
+    try {
+      urls.push(window.location.href)
+    } catch {
+      /* 跨域受限忽略 */
+    }
+    try {
+      urls.push(window.location.pathname)
+    } catch {
+      /* 跨域受限忽略 */
+    }
     try {
       for (let i = 0; i < document.scripts.length; i++) {
         urls.push(document.scripts[i].src || '')
       }
-    } catch {}
+    } catch {
+      /* 忽略 */
+    }
     const r = extractFromUrls(urls)
     if (r.team) return r.team
   }
@@ -64,7 +80,9 @@ export function getTeamUUID(): string {
   try {
     const m = window.parent.location.hash.match(/\/team\/([A-Za-z0-9]+)/)
     if (m?.[1]) return m[1]
-  } catch { /* cross-origin */ }
+  } catch {
+    /* cross-origin */
+  }
 
   return ''
 }
@@ -77,18 +95,30 @@ export function getAppID(): string {
     const env = (window as any).__ONES_MF_ENV__ || {}
     if (env.pluginID) return env.pluginID
     if (env.appID) return env.appID
-  } catch { /* next */ }
+  } catch {
+    /* next */
+  }
 
   // 2. 插件资源路径
   {
     const urls: string[] = []
-    try { urls.push(window.location.href) } catch {}
-    try { urls.push(window.location.pathname) } catch {}
+    try {
+      urls.push(window.location.href)
+    } catch {
+      /* 跨域受限忽略 */
+    }
+    try {
+      urls.push(window.location.pathname)
+    } catch {
+      /* 跨域受限忽略 */
+    }
     try {
       for (let i = 0; i < document.scripts.length; i++) {
         urls.push(document.scripts[i].src || '')
       }
-    } catch {}
+    } catch {
+      /* 忽略 */
+    }
     const r = extractFromUrls(urls)
     if (r.app) return r.app
   }
@@ -113,9 +143,17 @@ function getInstanceId(): string {
   // 1. __ONES_MF_ENV__
   try {
     const env = (window as any).__ONES_MF_ENV__ || {}
-    if (env.instanceId) { _instanceId = env.instanceId; return _instanceId }
-    if (env.instance_id) { _instanceId = env.instance_id; return _instanceId }
-  } catch { /* ignore */ }
+    if (env.instanceId) {
+      _instanceId = env.instanceId
+      return _instanceId
+    }
+    if (env.instance_id) {
+      _instanceId = env.instance_id
+      return _instanceId
+    }
+  } catch {
+    /* ignore */
+  }
   // 2. 异步获取不到，返回空，由 fetchRealInstanceId 填充
   return ''
 }
@@ -131,7 +169,7 @@ async function fetchRealInstanceId(): Promise<string> {
     const appId = getApiAppID()
     // 已知映射：app_id ipdrev01 ↔ instance_id gieJW9p2
     const KNOWN_INSTANCES: Record<string, string> = {
-      'ipdrev01': 'gieJW9p2',
+      ipdrev01: 'gieJW9p2',
     }
     if (KNOWN_INSTANCES[appId]) {
       _instanceId = KNOWN_INSTANCES[appId]
@@ -142,15 +180,12 @@ async function fetchRealInstanceId(): Promise<string> {
     const ou = getOrgUUID()
     if (!tu) return appId
     try {
-      const res = await fetch(
-        `/project/api/project/team/${tu}/plugin/list`,
-        {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ organization_uuid: ou, team_uuid: tu }),
-        }
-      )
+      const res = await fetch(`/project/api/project/team/${tu}/plugin/list`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ organization_uuid: ou, team_uuid: tu }),
+      })
       const j = await res.json()
       const list = j?.data
       if (Array.isArray(list)) {
@@ -163,7 +198,9 @@ async function fetchRealInstanceId(): Promise<string> {
           }
         }
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     return appId
   })()
   return _instanceIdPromise
@@ -174,28 +211,59 @@ function getOrgUUID(): string {
   // 1. __ONES_MF_ENV__
   try {
     const env = (window as any).__ONES_MF_ENV__ || {}
-    if (env.organizationUUID) { _orgUuid = env.organizationUUID; return _orgUuid }
-    if (env.organization_uuid) { _orgUuid = env.organization_uuid; return _orgUuid }
-  } catch { /* ignore */ }
+    if (env.organizationUUID) {
+      _orgUuid = env.organizationUUID
+      return _orgUuid
+    }
+    if (env.organization_uuid) {
+      _orgUuid = env.organization_uuid
+      return _orgUuid
+    }
+  } catch {
+    /* ignore */
+  }
   // 2. 父窗口 hash（ONES 页面 URL 格式：#/plugin/{org}/{team}/{app}/...）
   try {
     const hash = window.parent.location.hash
     const m = hash.match(/\/plugin\/([^/]+)\/([^/]+)\/([^/]+)\//)
-    if (m) { _orgUuid = m[1]; return _orgUuid }
-  } catch { /* cross-origin, ignore */ }
+    if (m) {
+      _orgUuid = m[1]
+      return _orgUuid
+    }
+  } catch {
+    /* cross-origin, ignore */
+  }
   // 3. 插件脚本路径
-  try { for (let i = 0; i < document.scripts.length; i++) {
-    const src = document.scripts[i].src || ''
-    const m = src.match(/\/plugin\/([^/]+)\/([^/]+)\/([^/]+)\//)
-    if (m) { _orgUuid = m[1]; return _orgUuid }
-  }} catch {}
+  try {
+    for (let i = 0; i < document.scripts.length; i++) {
+      const src = document.scripts[i].src || ''
+      const m = src.match(/\/plugin\/([^/]+)\/([^/]+)\/([^/]+)\//)
+      if (m) {
+        _orgUuid = m[1]
+        return _orgUuid
+      }
+    }
+  } catch {
+    /* 忽略 */
+  }
   // 4. window.location 兜底
   const sources: string[] = []
-  try { sources.push(window.location.href) } catch {}
-  try { sources.push(window.location.pathname) } catch {}
+  try {
+    sources.push(window.location.href)
+  } catch {
+    /* 忽略 */
+  }
+  try {
+    sources.push(window.location.pathname)
+  } catch {
+    /* 忽略 */
+  }
   for (const src of sources) {
     const m = src.match(/\/plugin\/([^/]+)\/([^/]+)\/([^/]+)\//)
-    if (m) { _orgUuid = m[1]; return _orgUuid }
+    if (m) {
+      _orgUuid = m[1]
+      return _orgUuid
+    }
   }
   // 5. 硬编码已知值 — org UUID 在安装实例中固定不变
   _orgUuid = 'MVUtevnf'
@@ -212,26 +280,25 @@ export async function checkPermission(permField: string): Promise<boolean> {
   try {
     const iid = await fetchRealInstanceId()
     // batch_check 端点要求 Ones-Plugin-Id: built_in_apis 请求头
-    const res = await fetch(
-      `/project/api/project/plugin/permissionrule/batch_check`,
-      {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          'Ones-Plugin-Id': 'built_in_apis',
-        },
-        body: JSON.stringify({
-          permission_rules: [{
+    const res = await fetch(`/project/api/project/plugin/permissionrule/batch_check`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'Ones-Plugin-Id': 'built_in_apis',
+      },
+      body: JSON.stringify({
+        permission_rules: [
+          {
             organization_uuid: ou,
             team_uuid: tu,
             instance_id: iid,
             permission_field: permField,
             context: {},
-          }],
-        }),
-      }
-    )
+          },
+        ],
+      }),
+    })
     if (!res.ok) {
       console.warn(`[IPD] Permission check failed: ${res.status} for ${permField}`)
       return false
@@ -265,7 +332,9 @@ async function readApiError(res: Response): Promise<string> {
     const json = JSON.parse(text)
     const payload = json.body || json.data || json
     if (payload?.error) return payload.error
-  } catch { /* 非 JSON 响应使用状态码 */ }
+  } catch {
+    /* 非 JSON 响应使用状态码 */
+  }
   if (res.status === 401) return '登录状态已失效，请重新登录后再试。'
   if (res.status === 403) return '没有执行此操作的权限。'
   if (res.status === 503) return '权限服务暂时不可用，请稍后重试。'
@@ -275,10 +344,7 @@ async function readApiError(res: Response): Promise<string> {
 function buildUrl(endpoint: string): string {
   const tu = getTeamUUID()
   if (!tu) {
-    throw new IpdApiError(
-      '未获取到团队 UUID，请从 ONES 插件入口重新进入页面。',
-      0
-    )
+    throw new IpdApiError('未获取到团队 UUID，请从 ONES 插件入口重新进入页面。', 0)
   }
   // 分离已有 query string
   const [path, qs] = endpoint.split('?')
@@ -330,8 +396,11 @@ export async function apiDelete(endpoint: string): Promise<any> {
 }
 
 // ---- Reviewer Profile / Project Binding ----
-export const upsertProjectBinding = (data: { project_uuid: string; profile_id: string; review_type: string }) =>
-  apiPost('/ipd/project-binding', data)
+export const upsertProjectBinding = (data: {
+  project_uuid: string
+  profile_id: string
+  review_type: string
+}) => apiPost('/ipd/project-binding', data)
 
 export const deleteProjectBinding = (bindingId: string) =>
   apiDelete(`/ipd/project-binding/${bindingId}`)

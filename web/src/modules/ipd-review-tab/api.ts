@@ -6,7 +6,10 @@ function buildUrl(url: string): string {
   return `/project/api/project/team/${tu}${url}`
 }
 
-function callApi<T = any>(url: string, options: { method?: string; body?: string } = {}): Promise<T> {
+function callApi<T = any>(
+  url: string,
+  options: { method?: string; body?: string } = {},
+): Promise<T> {
   return new Promise((resolve, reject) => {
     const fullUrl = buildUrl(url)
     const xhr = new XMLHttpRequest()
@@ -20,8 +23,9 @@ function callApi<T = any>(url: string, options: { method?: string; body?: string
           const json = JSON.parse(xhr.responseText)
           // addition API: { body: {...} }, external API: { data: {...} }
           resolve(json.body || json.data || json)
+        } catch {
+          reject(new Error(`JSON parse error`))
         }
-        catch { reject(new Error(`JSON parse error`)) }
       } else {
         // 尝试从响应体提取 error 字段
         let msg = `${xhr.status}`
@@ -30,7 +34,9 @@ function callApi<T = any>(url: string, options: { method?: string; body?: string
           const json = JSON.parse(xhr.responseText)
           payload = json.body || json.data || json
           msg = payload?.error || xhr.responseText.substring(0, 200)
-        } catch { msg = xhr.responseText.substring(0, 200) }
+        } catch {
+          msg = xhr.responseText.substring(0, 200)
+        }
         const error: any = new Error(msg)
         error.data = payload
         error.status = xhr.status
@@ -44,15 +50,20 @@ function callApi<T = any>(url: string, options: { method?: string; body?: string
 
 // ---- 基础 ----
 export const getPluginConfig = () => callApi('/ipd/config')
-export const savePluginConfig = (data: any) => callApi('/ipd/config', { method: 'POST', body: JSON.stringify(data) })
+export const savePluginConfig = (data: any) =>
+  callApi('/ipd/config', { method: 'POST', body: JSON.stringify(data) })
 
 // ---- 用户搜索（加载团队成员，客户端过滤） ----
 let _memberCache: { uuid: string; name: string; email: string; avatar: string }[] | null = null
 
-async function fetchTeamMembers(tu: string): Promise<{ uuid: string; name: string; email: string; avatar: string }[]> {
+async function fetchTeamMembers(
+  tu: string,
+): Promise<{ uuid: string; name: string; email: string; avatar: string }[]> {
   // 团队 members 列表（已验证可行）
   try {
-    const res = await fetch(`/project/api/project/team/${tu}/members?limit=200`, { credentials: 'include' })
+    const res = await fetch(`/project/api/project/team/${tu}/members?limit=200`, {
+      credentials: 'include',
+    })
     if (res.ok) {
       const json = await res.json()
       // ONES 返回格式: { members: [...] }，也可能 { data: [...] }
@@ -64,7 +75,9 @@ async function fetchTeamMembers(tu: string): Promise<{ uuid: string; name: strin
         avatar: u.avatar || '',
       }))
     }
-  } catch { /* 静默失败 */ }
+  } catch {
+    /* 静默失败 */
+  }
 
   return []
 }
@@ -84,7 +97,9 @@ export async function resolveReviewerNames(uuids: string[]): Promise<Record<stri
   return result
 }
 
-export async function searchUsers(keyword: string): Promise<{ uuid: string; name: string; email: string; avatar: string }[]> {
+export async function searchUsers(
+  keyword: string,
+): Promise<{ uuid: string; name: string; email: string; avatar: string }[]> {
   const tu = getTeamUUID()
   if (!tu) throw new IpdApiError('未获取到团队 UUID', 0)
 
@@ -93,16 +108,19 @@ export async function searchUsers(keyword: string): Promise<{ uuid: string; name
     _memberCache = await fetchTeamMembers(tu)
   }
 
-  if (!keyword || !keyword.trim()) return _memberCache.slice(0, 20)
+  if (!keyword?.trim()) return _memberCache.slice(0, 20)
   const kw = keyword.trim().toLowerCase()
-  return _memberCache.filter(u =>
-    u.name.toLowerCase().includes(kw) || u.email.toLowerCase().includes(kw)
-  ).slice(0, 20)
+  return _memberCache
+    .filter((u) => u.name.toLowerCase().includes(kw) || u.email.toLowerCase().includes(kw))
+    .slice(0, 20)
 }
 
 // ONES 项目成员管理是页面内部 API，需要在用户登录态下调用。
 // 提交时必须带上项目成员角色的完整成员集合，避免覆盖原有成员。
-export async function ensureProjectMembers(projectUuid: string, userUuids: string[]): Promise<void> {
+export async function ensureProjectMembers(
+  projectUuid: string,
+  userUuids: string[],
+): Promise<void> {
   const teamUuid = getTeamUUID()
   const requested = [...new Set(userUuids.filter(Boolean))]
   if (!teamUuid || !projectUuid || requested.length === 0) return
@@ -120,21 +138,24 @@ export async function ensureProjectMembers(projectUuid: string, userUuids: strin
 
   const rolesResponse = await fetch(
     `/project/api/project/team/${teamUuid}/project/${projectUuid}/role_members`,
-    { credentials: 'include' }
+    { credentials: 'include' },
   )
   if (!rolesResponse.ok) fail(`读取项目成员失败（${rolesResponse.status}）`)
   const rolesJson = await rolesResponse.json()
   const roleMembers = rolesJson?.data?.role_members || rolesJson?.role_members || []
   const roleItems = Array.isArray(roleMembers) ? roleMembers : []
-  const projectMemberRole = roleItems.find((item: any) => item?.role?.is_project_member)
-    || roleItems.find((item: any) => item?.role?.name === '项目成员')
+  const projectMemberRole =
+    roleItems.find((item: any) => item?.role?.is_project_member) ||
+    roleItems.find((item: any) => item?.role?.name === '项目成员')
   const roleUuid = projectMemberRole?.role?.uuid || ''
   if (!roleUuid) fail('未找到项目成员角色')
 
-  const existingMembers = (Array.isArray(projectMemberRole.members) ? projectMemberRole.members : [])
-    .map((member: any) => typeof member === 'string' ? member : member?.uuid)
+  const existingMembers = (
+    Array.isArray(projectMemberRole.members) ? projectMemberRole.members : []
+  )
+    .map((member: any) => (typeof member === 'string' ? member : member?.uuid))
     .filter(Boolean)
-  const missing = requested.filter(uuid => !existingMembers.includes(uuid))
+  const missing = requested.filter((uuid) => !existingMembers.includes(uuid))
   if (missing.length === 0) return
 
   const members = [...new Set([...existingMembers, ...missing])]
@@ -145,7 +166,7 @@ export async function ensureProjectMembers(projectUuid: string, userUuids: strin
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ members }),
-    }
+    },
   )
   if (!updateResponse.ok) {
     let reason = `更新项目成员失败（${updateResponse.status}）`
@@ -158,16 +179,19 @@ export async function ensureProjectMembers(projectUuid: string, userUuids: strin
 
   const updateJson = await updateResponse.json()
   const updatedRoles = updateJson?.data?.role_members || updateJson?.role_members || []
-  const updatedRole = (Array.isArray(updatedRoles) ? updatedRoles : []).find((item: any) => item?.role?.uuid === roleUuid)
+  const updatedRole = (Array.isArray(updatedRoles) ? updatedRoles : []).find(
+    (item: any) => item?.role?.uuid === roleUuid,
+  )
   const updatedMembers = (Array.isArray(updatedRole?.members) ? updatedRole.members : [])
-    .map((member: any) => typeof member === 'string' ? member : member?.uuid)
+    .map((member: any) => (typeof member === 'string' ? member : member?.uuid))
     .filter(Boolean)
-  const notAdded = missing.find(uuid => !updatedMembers.includes(uuid))
+  const notAdded = missing.find((uuid) => !updatedMembers.includes(uuid))
   if (notAdded) fail('项目成员接口未返回新增成员', notAdded)
 }
 
 // ---- 评审单 ----
-export const createReview = (data: any) => callApi('/ipd/review', { method: 'POST', body: JSON.stringify(data) })
+export const createReview = (data: any) =>
+  callApi('/ipd/review', { method: 'POST', body: JSON.stringify(data) })
 export const getReviewDetail = (uuid: string) => callApi(`/ipd/review/${uuid}`)
 export const listReviewsByProject = (puuid: string, reviewType?: string) => {
   const params = new URLSearchParams()
@@ -176,62 +200,111 @@ export const listReviewsByProject = (puuid: string, reviewType?: string) => {
   return callApi(`/ipd/reviews/by-project/${puuid}${query ? `?${query}` : ''}`)
 }
 export const listTeamReviews = () => callApi('/ipd/reviews/team')
-export const startReview = (uuid: string, data?: any) => callApi(`/ipd/review/${uuid}/start`, { method: 'POST', body: JSON.stringify(data || {}) })
-export const recallReview = (uuid: string, data?: any) => callApi(`/ipd/review/${uuid}/recall`, { method: 'POST', body: JSON.stringify(data || {}) })
-export const updateReviewBasicInfo = (uuid: string, data?: any) => callApi(`/ipd/review/${uuid}/basic-info`, { method: 'POST', body: JSON.stringify(data || {}) })
-export const deleteReview = (uuid: string, data?: any) => callApi(`/ipd/review/${uuid}`, { method: 'DELETE', body: JSON.stringify(data || {}) })
-export const recreateReview = (uuid: string, data?: any) => callApi(`/ipd/review/${uuid}/recreate`, { method: 'POST', body: JSON.stringify(data || {}) })
+export const startReview = (uuid: string, data?: any) =>
+  callApi(`/ipd/review/${uuid}/start`, { method: 'POST', body: JSON.stringify(data || {}) })
+export const recallReview = (uuid: string, data?: any) =>
+  callApi(`/ipd/review/${uuid}/recall`, { method: 'POST', body: JSON.stringify(data || {}) })
+export const updateReviewBasicInfo = (uuid: string, data?: any) =>
+  callApi(`/ipd/review/${uuid}/basic-info`, { method: 'POST', body: JSON.stringify(data || {}) })
+export const deleteReview = (uuid: string, data?: any) =>
+  callApi(`/ipd/review/${uuid}`, { method: 'DELETE', body: JSON.stringify(data || {}) })
+export const recreateReview = (uuid: string, data?: any) =>
+  callApi(`/ipd/review/${uuid}/recreate`, { method: 'POST', body: JSON.stringify(data || {}) })
 
 // ---- 材料 & 指标 ----
-export const updateMaterialStatus = (uuid: string, data: any) => callApi(`/ipd/review/${uuid}/material-status`, { method: 'POST', body: JSON.stringify(data) })
-export const uploadMaterialFile = (uuid: string, data: any) => callApi(`/ipd/review/${uuid}/material-upload`, { method: 'POST', body: JSON.stringify(data) })
-export const removeMaterialFile = (uuid: string, data: any) => callApi(`/ipd/review/${uuid}/material-remove`, { method: 'POST', body: JSON.stringify(data) })
-export const getMaterialUploadUrl = (reviewUuid: string, templateId: string) => callApi(`/ipd/review/${reviewUuid}/material/${templateId}/upload-url`)
-export const getMaterialDownloadUrl = (reviewUuid: string, templateId: string) => callApi(`/ipd/review/${reviewUuid}/material/${templateId}/download-url`)
-export const getMaterialPreview = (reviewUuid: string, templateId: string) => callApi(`/ipd/review/${reviewUuid}/material/${templateId}/preview`)
-export const getAttachmentDownloadUrl = (reviewUuid: string, objectKey: string) => callApi(`/ipd/review/${reviewUuid}/material-attachment/download-url?object_key=${encodeURIComponent(objectKey)}`)
-export const getAttachmentPreview = (reviewUuid: string, objectKey: string, fileName: string) => callApi(`/ipd/review/${reviewUuid}/material-attachment/preview?object_key=${encodeURIComponent(objectKey)}&file_name=${encodeURIComponent(fileName)}`)
-export const updateIndicators = (uuid: string, data: any) => callApi(`/ipd/review/${uuid}/indicators`, { method: 'POST', body: JSON.stringify(data) })
+export const updateMaterialStatus = (uuid: string, data: any) =>
+  callApi(`/ipd/review/${uuid}/material-status`, { method: 'POST', body: JSON.stringify(data) })
+export const uploadMaterialFile = (uuid: string, data: any) =>
+  callApi(`/ipd/review/${uuid}/material-upload`, { method: 'POST', body: JSON.stringify(data) })
+export const removeMaterialFile = (uuid: string, data: any) =>
+  callApi(`/ipd/review/${uuid}/material-remove`, { method: 'POST', body: JSON.stringify(data) })
+export const getMaterialUploadUrl = (reviewUuid: string, templateId: string) =>
+  callApi(`/ipd/review/${reviewUuid}/material/${templateId}/upload-url`)
+export const getMaterialDownloadUrl = (reviewUuid: string, templateId: string) =>
+  callApi(`/ipd/review/${reviewUuid}/material/${templateId}/download-url`)
+export const getMaterialPreview = (reviewUuid: string, templateId: string) =>
+  callApi(`/ipd/review/${reviewUuid}/material/${templateId}/preview`)
+export const getAttachmentDownloadUrl = (reviewUuid: string, objectKey: string) =>
+  callApi(
+    `/ipd/review/${reviewUuid}/material-attachment/download-url?object_key=${encodeURIComponent(objectKey)}`,
+  )
+export const getAttachmentPreview = (reviewUuid: string, objectKey: string, fileName: string) =>
+  callApi(
+    `/ipd/review/${reviewUuid}/material-attachment/preview?object_key=${encodeURIComponent(objectKey)}&file_name=${encodeURIComponent(fileName)}`,
+  )
+export const updateIndicators = (uuid: string, data: any) =>
+  callApi(`/ipd/review/${uuid}/indicators`, { method: 'POST', body: JSON.stringify(data) })
 
 // ---- 评审人 & 意见 ----
-export const updateReviewers = (uuid: string, data: any) => callApi(`/ipd/review/${uuid}/reviewers`, { method: 'POST', body: JSON.stringify(data) })
-export const submitOpinion = (uuid: string, data: any) => callApi(`/ipd/review/${uuid}/opinion`, { method: 'POST', body: JSON.stringify(data) })
+export const updateReviewers = (uuid: string, data: any) =>
+  callApi(`/ipd/review/${uuid}/reviewers`, { method: 'POST', body: JSON.stringify(data) })
+export const submitOpinion = (uuid: string, data: any) =>
+  callApi(`/ipd/review/${uuid}/opinion`, { method: 'POST', body: JSON.stringify(data) })
 
 // ---- 关联工作项 ----
-export const linkIssue = (uuid: string, data: any) => callApi(`/ipd/review/${uuid}/link-issue`, { method: 'POST', body: JSON.stringify(data) })
+export const linkIssue = (uuid: string, data: any) =>
+  callApi(`/ipd/review/${uuid}/link-issue`, { method: 'POST', body: JSON.stringify(data) })
 export const getLinkedIssues = (uuid: string) => callApi(`/ipd/review/${uuid}/linked-issues`)
 
 // ---- 决议 & 补充 ----
-export const generateResolution = (uuid: string, data: any) => callApi(`/ipd/review/${uuid}/generate-resolution`, { method: 'POST', body: JSON.stringify(data) })
-export const publishResolution = (uuid: string, data: any) => callApi(`/ipd/review/${uuid}/publish-resolution`, { method: 'POST', body: JSON.stringify(data) })
-export const addSupplement = (uuid: string, data: any) => callApi(`/ipd/review/${uuid}/supplement`, { method: 'POST', body: JSON.stringify(data) })
+export const generateResolution = (uuid: string, data: any) =>
+  callApi(`/ipd/review/${uuid}/generate-resolution`, { method: 'POST', body: JSON.stringify(data) })
+export const publishResolution = (uuid: string, data: any) =>
+  callApi(`/ipd/review/${uuid}/publish-resolution`, { method: 'POST', body: JSON.stringify(data) })
+export const addSupplement = (uuid: string, data: any) =>
+  callApi(`/ipd/review/${uuid}/supplement`, { method: 'POST', body: JSON.stringify(data) })
 
 // ---- 审计 ----
 export const getAuditLog = (uuid: string) => callApi(`/ipd/review/${uuid}/audit-log`)
 
 // ---- 催办 ----
-export const remindReview = (uuid: string, data: { target: 'reviewers' | 'resolution'; operator_uuid: string; operator_name?: string }) =>
-  callApi(`/ipd/review/${uuid}/remind`, { method: 'POST', body: JSON.stringify(data) })
+export const remindReview = (
+  uuid: string,
+  data: { target: 'reviewers' | 'resolution'; operator_uuid: string; operator_name?: string },
+) => callApi(`/ipd/review/${uuid}/remind`, { method: 'POST', body: JSON.stringify(data) })
 
 // ---- 状态机 ----
-export const transitionReview = (uuid: string, data: { target_state: 're_reviewing'; reason?: string }) =>
-  callApi(`/ipd/review/${uuid}/transition`, { method: 'POST', body: JSON.stringify(data) })
+export const transitionReview = (
+  uuid: string,
+  data: { target_state: 're_reviewing'; reason?: string },
+) => callApi(`/ipd/review/${uuid}/transition`, { method: 'POST', body: JSON.stringify(data) })
 export const getReviewState = (uuid: string) => callApi(`/ipd/review/${uuid}/state`)
 export const getReviewRounds = (uuid: string) => callApi(`/ipd/review/${uuid}/rounds`)
 
 // ---- 整改闭环 ----
 export const getRemediationIssues = (uuid: string) => callApi(`/ipd/review/${uuid}/remediation`)
-export const refreshRemediationStatus = (uuid: string) => callApi(`/ipd/review/${uuid}/remediation/refresh`, { method: 'POST' })
-export const syncRemediationStatus = (uuid: string, items: Array<{ issue_uuid: string; status_name?: string; status_id?: string; category?: string | number }>) =>
-  callApi(`/ipd/review/${uuid}/remediation/sync`, { method: 'POST', body: JSON.stringify({ items }) })
+export const refreshRemediationStatus = (uuid: string) =>
+  callApi(`/ipd/review/${uuid}/remediation/refresh`, { method: 'POST' })
+export const syncRemediationStatus = (
+  uuid: string,
+  items: Array<{
+    issue_uuid: string
+    status_name?: string
+    status_id?: string
+    category?: string | number
+  }>,
+) =>
+  callApi(`/ipd/review/${uuid}/remediation/sync`, {
+    method: 'POST',
+    body: JSON.stringify({ items }),
+  })
 export const confirmRemediation = (uuid: string, data: { next_action: 're_review' }) =>
   callApi(`/ipd/review/${uuid}/remediation/confirm`, { method: 'POST', body: JSON.stringify(data) })
 
 // ---- Reviewer Profile ----
 export const listReviewerProfiles = (reviewType?: string) =>
   callApi(`/ipd/reviewer-profiles${reviewType ? `?review_type=${reviewType}` : ''}`)
-export const createReviewerProfile = (data: { profile_name: string; review_type: string; description?: string; role_assignments: { role_name: string; mode: 'single' | 'pool'; default_reviewer_uuid?: string; candidate_uuids?: string[] }[] }) =>
-  callApi('/ipd/reviewer-profile', { method: 'POST', body: JSON.stringify(data) })
+export const createReviewerProfile = (data: {
+  profile_name: string
+  review_type: string
+  description?: string
+  role_assignments: {
+    role_name: string
+    mode: 'single' | 'pool'
+    default_reviewer_uuid?: string
+    candidate_uuids?: string[]
+  }[]
+}) => callApi('/ipd/reviewer-profile', { method: 'POST', body: JSON.stringify(data) })
 export const getReviewerProfile = (profileId: string) =>
   callApi(`/ipd/reviewer-profile/${profileId}`)
 export const updateReviewerProfile = (profileId: string, data: any) =>
@@ -242,11 +315,17 @@ export const deleteReviewerProfile = (profileId: string) =>
 // ---- Project Binding ----
 export const listProjectBindings = (projectUuid?: string) =>
   callApi(`/ipd/project-bindings${projectUuid ? `?project_uuid=${projectUuid}` : ''}`)
-export const upsertProjectBinding = (data: { project_uuid: string; profile_id: string; review_type: string }) =>
-  callApi('/ipd/project-binding', { method: 'POST', body: JSON.stringify(data) })
+export const upsertProjectBinding = (data: {
+  project_uuid: string
+  profile_id: string
+  review_type: string
+}) => callApi('/ipd/project-binding', { method: 'POST', body: JSON.stringify(data) })
 export const deleteProjectBinding = (bindingId: string) =>
   callApi(`/ipd/project-binding/${bindingId}`, { method: 'DELETE' })
 
 // ---- Apply Profile to Review ----
 export const applyProfileToReview = (reviewUuid: string, profileId: string) =>
-  callApi(`/ipd/review/${reviewUuid}/apply-profile`, { method: 'POST', body: JSON.stringify({ profile_id: profileId }) })
+  callApi(`/ipd/review/${reviewUuid}/apply-profile`, {
+    method: 'POST',
+    body: JSON.stringify({ profile_id: profileId }),
+  })

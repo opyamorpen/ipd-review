@@ -1,24 +1,29 @@
-export type ProjectIssueType = {
+export interface ProjectIssueType {
   scope_uuid: string
   issue_type_uuid: string
   name: string
 }
 
-export type ProjectIssueTypesResult = {
+export interface ProjectIssueTypesResult {
   project_uuid: string
   types: ProjectIssueType[]
   verified: boolean
 }
 
 function normalizeTypes(raw: any[]): ProjectIssueType[] {
-  return raw.map((item: any) => ({
-    scope_uuid: item.uuid || item.scope_uuid || '',
-    issue_type_uuid: item.issue_type_uuid || item.uuid || '',
-    name: item.name || item.issue_type_name || item.type_name || item.display_name || '',
-  })).filter((item: ProjectIssueType) => item.name)
+  return raw
+    .map((item: any) => ({
+      scope_uuid: item.uuid || item.scope_uuid || '',
+      issue_type_uuid: item.issue_type_uuid || item.uuid || '',
+      name: item.name || item.issue_type_name || item.type_name || item.display_name || '',
+    }))
+    .filter((item: ProjectIssueType) => item.name)
 }
 
-export async function resolveProjectIssueTypes(teamUuid: string, projectRef: string): Promise<ProjectIssueTypesResult> {
+export async function resolveProjectIssueTypes(
+  teamUuid: string,
+  projectRef: string,
+): Promise<ProjectIssueTypesResult> {
   let projectUuid = projectRef
   try {
     const exchangeRes = await fetch(
@@ -84,12 +89,13 @@ export function findConfiguredIssueType(
   configuredUuid: string,
 ): ProjectIssueType | undefined {
   if (configuredUuid) {
-    const byUuid = types.find(item =>
-      item.issue_type_uuid === configuredUuid || item.scope_uuid === configuredUuid)
+    const byUuid = types.find(
+      (item) => item.issue_type_uuid === configuredUuid || item.scope_uuid === configuredUuid,
+    )
     if (byUuid) return byUuid
   }
   if (!configuredName) return undefined
-  return types.find(item => item.name === configuredName)
+  return types.find((item) => item.name === configuredName)
 }
 
 export function remediationTypeBlockedMessage(

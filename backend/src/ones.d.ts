@@ -61,6 +61,8 @@ declare var ONESEntities: {
     ipd_review: {
         attributes: {
             review_uuid?: string;
+            issue_uuid?: string;
+            issue_number?: string;
             project_uuid?: string;
             phase_code?: string;
             review_title?: string;
@@ -268,6 +270,16 @@ declare var ONESEntities: {
             profile_id?: string;
             review_type?: string;
             created_by?: string;
+            created_at?: number;
+        };
+        indexes: null;
+    };
+    ipd_transition_intent: {
+        attributes: {
+            task_uuid?: string;
+            target_state?: string;
+            nonce?: string;
+            actor_uuid?: string;
             created_at?: number;
         };
         indexes: null;

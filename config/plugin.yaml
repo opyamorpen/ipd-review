@@ -1,15 +1,17 @@
 service:
   app_id: ipdrev01
   name: IPD评审
-  description: 团队级DCP/TR评审插件。支持项目内发起DCP阶段决策评审和TR技术评审、多人异步评审、关联工作项、不可覆盖决议快照和审计追溯。
-  version: 1.31.47
+  description: >-
+    团队级DCP/TR评审插件（新架构）。评审单主体由系统自定义工作项承载：原生工作项详情页 +
+    插件自定义Tab呈现评审过程，插件承载评审/审批全过程（会签、决议规则、门禁、不可覆盖快照），TaskEventHandler 守卫流转。
+  version: 1.0.0
   mode: org
   logo: null
   language: nodejs
   language_version: 1.11.33
   host_version: 1.11.33
   host_sub_version: 1.11.33
-  min_system_version: 3.11.39
+  min_system_version: 6.0.43
   auth: null
   config: null
   scope: 1
@@ -29,12 +31,12 @@ service:
 modules:
   - id: ipd-review-tab
     moduleType: ones:project:component:new
-    title: DCP评审
-    description: 项目内DCP评审工作台：评审列表、创建评审单、材料/指标/评审人/意见/关联工作项/决议/审计
+    title: IPD评审
+    description: 项目内IPD评审工作台：评审列表、IPD流程图、创建评审单（详情跳转原生工作项详情页）
     entry: ./modules/ipd-review-tab/index.tsx
   - id: ipd-reviewer-workspace
     moduleType: ones:workspace:new
-    title: DCP评审工作台
+    title: IPD评审工作台
     description: 评审人工作台：查看待评审单、填写评审意见、关联工作项
     entry: modules/ipd-reviewer-workspace/index.html
   - id: ipd-sidebar
@@ -49,6 +51,28 @@ modules:
         title: 评审总览
         entry: modules/ipd-sidebar/ipd-review-overview/index.html
         permission: ipd_view_review
+  - id: ipd-issue-tab
+    title: IPD评审详情
+    description: 工作项详情页自定义Tab：评审意见汇总、材料与指标、Checklist、决议快照、轮次对比、审计
+    moduleType: ones:issue:tab:new
+    modules:
+      - id: ipd-issue-tab-content
+        name: Tab
+        title: 评审过程
+        enableMemoryRouter: true
+        entry: modules/ipd-issue-tab/tab/index.html
+      - id: ipd-issue-tab-preview
+        name: Preview
+        title: 评审过程预览
+        enableMemoryRouter: true
+        entry: modules/ipd-issue-tab/preview/index.html
+  - id: ipd-quick-action
+    title: IPD评审操作
+    description: 工作项详情页快捷操作：发起评审、发布决议、催办、开始复审、撤回
+    moduleType: ones:global:modal
+    entry: modules/ipd-quick-action/index.html
+    preload: true
+    manual: true
 abilities:
   - id: ipd-project-component
     name: ProjectCustomComponent
@@ -80,6 +104,36 @@ abilities:
     abilityType: SidebarMenu
     relateModule:
       systemMenu: ipd-sidebar
+  - id: ipd-issue-tab-ability
+    name: IPD评审详情Tab
+    version: 1.0.0
+    abilityType: LayoutCustomIssueTab
+    relateModule:
+      moduleID: ipd-issue-tab
+  - id: ipd-quick-action-ability
+    name: IPD评审快捷操作
+    version: 1.0.0
+    abilityType: LayoutCustomQuickAction
+    relateModule:
+      quickActionMenu: ipd-quick-action
+  - id: ipd-task-event-handler
+    name: 评审单流转守卫
+    version: 1.0.0
+    abilityType: TaskEventHandler
+    function:
+      taskPreActionFunc: taskPreAction
+      taskActionDoneFunc: taskActionDone
+    config:
+      - fieldType: Input
+        key: issueTypeScope
+        show: true
+        label: 评审单工作项类型
+        value: IPD评审单
+      - fieldType: Input
+        key: field
+        show: true
+        label: 受保护的工作项属性
+        value: 会议时间,评审轮次,评审结论
 apis:
   - type: external
     methods:
@@ -339,6 +393,8 @@ apis:
 events:
   - eventType: ones:project:issue-status:changed
     function: onIssueStatusChanged
+  - eventType: ones:project:issue:updated
+    function: onIssueUpdated
 storage:
   entities:
     - name: ipd_base_config
@@ -465,6 +521,14 @@ storage:
         review_uuid:
           type: text
           length: 64
+          default: ''
+        issue_uuid:
+          type: text
+          length: 64
+          default: ''
+        issue_number:
+          type: text
+          length: 32
           default: ''
         project_uuid:
           type: text
@@ -1074,6 +1138,28 @@ storage:
           length: 8
           default: dcp
         created_by:
+          type: text
+          length: 64
+          default: ''
+        created_at:
+          type: integer
+          length: 16
+          default: 0
+    - name: ipd_transition_intent
+      attributes:
+        task_uuid:
+          type: text
+          length: 64
+          default: ''
+        target_state:
+          type: text
+          length: 32
+          default: ''
+        nonce:
+          type: text
+          length: 64
+          default: ''
+        actor_uuid:
           type: text
           length: 64
           default: ''

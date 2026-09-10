@@ -44,3 +44,9 @@ jobs:
 
       - name: Type-check frontend
         run: npx tsc -p web/tsconfig.json --noEmit
+
+      - name: Authorization policy tests
+        run: node scripts/auth-policy.test.mjs
+
+      - name: Review guardrails tests
+        run: node scripts/review-guardrails.test.mjs

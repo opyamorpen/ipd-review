@@ -8,14 +8,22 @@ const projectPage = fs.readFileSync('web/src/modules/ipd-review-tab/index.tsx', 
 const workspace = fs.readFileSync('web/src/modules/ipd-reviewer-workspace/index.tsx', 'utf8')
 const projectApi = fs.readFileSync('web/src/modules/ipd-review-tab/api.ts', 'utf8')
 const projectIssueTypes = fs.readFileSync('web/src/project-issue-types.ts', 'utf8')
-const remediationPanel = fs.readFileSync('web/src/modules/ipd-review-tab/RemediationPanel.tsx', 'utf8')
+const remediationPanel = fs.readFileSync(
+  'web/src/modules/ipd-review-tab/RemediationPanel.tsx',
+  'utf8',
+)
 const configPage = fs.readFileSync('web/src/modules/ipd-config-page/index.tsx', 'utf8')
+const taskHandler = fs.readFileSync('backend/src/task-event-handler.ts', 'utf8')
+const issueService = fs.readFileSync('backend/src/issue-service.ts', 'utf8')
 
 const transitionHandler = backend.slice(
   backend.indexOf('export async function transitionReview'),
   backend.indexOf('export async function getReviewState'),
 )
-assert.match(transitionHandler, /target_state !== 're_reviewing' \|\| currentState !== 'remediation_pending'/)
+assert.match(
+  transitionHandler,
+  /target_state !== 're_reviewing' \|\| currentState !== 'remediation_pending'/,
+)
 assert.match(transitionHandler, /STATE_TRANSITION_NOT_ALLOWED/)
 
 const createHandler = backend.slice(
@@ -33,7 +41,10 @@ const startHandler = backend.slice(
   backend.indexOf('export async function startReview'),
   backend.indexOf('export async function recallReview'),
 )
-assert.match(startHandler, /findPhaseReviewConflict\(projectIdentity\.lookupIds, rv\.phase_code, reviewType, rid\)/)
+assert.match(
+  startHandler,
+  /findPhaseReviewConflict\(projectIdentity\.lookupIds, rv\.phase_code, reviewType, rid\)/,
+)
 assert.match(startHandler, /claimPhaseGuard\(projectIdentity\.canonicalUuid/)
 assert.match(startHandler, /getPhaseDependencySnapshot/)
 assert.match(startHandler, /getClosedPassingPhases/)
@@ -45,14 +56,20 @@ const passingPhaseHelper = backend.slice(
   backend.indexOf('export async function Enable'),
 )
 assert.match(passingPhaseHelper, /state !== 'completed' && state !== 'archived'/)
-assert.match(passingPhaseHelper, /latest\?\.final_conclusion === 'pass' \|\| latest\?\.final_conclusion === 'conditional_pass'/)
+assert.match(
+  passingPhaseHelper,
+  /latest\?\.final_conclusion === 'pass' \|\| latest\?\.final_conclusion === 'conditional_pass'/,
+)
 
 const attachmentHandler = backend.slice(
   backend.indexOf('async function findAuthorizedAttachment'),
   backend.indexOf('export async function updateMaterialStatus'),
 )
 assert.match(attachmentHandler, /if \(!attachment\).*ATTACHMENT_NOT_FOUND/s)
-assert.ok(attachmentHandler.indexOf('findAuthorizedAttachment(rid, objKey)') < attachmentHandler.indexOf('object\.download\(objKey\)'))
+assert.ok(
+  attachmentHandler.indexOf('findAuthorizedAttachment(rid, objKey)') <
+    attachmentHandler.indexOf('object\.download\(objKey\)'),
+)
 
 const evidenceHandlers = [
   ['uploadMaterialFile', 'removeMaterialFile'],
@@ -68,7 +85,10 @@ for (const [start, end] of evidenceHandlers) {
   )
   assert.match(source, /evidenceEditDenied/)
 }
-assert.match(backend, /state === 'draft' \|\| state === 'ready' \|\| state === 'remediation_pending'/)
+assert.match(
+  backend,
+  /state === 'draft' \|\| state === 'ready' \|\| state === 'remediation_pending'/,
+)
 assert.match(backend, /state === 'remediation_pending' \? currentRound \+ 1 : currentRound/)
 assert.match(projectPage, /editable=\{data\.can_edit_evidence === true\}/)
 assert.equal(projectPage.includes('project_aliases'), false)
@@ -76,7 +96,9 @@ assert.equal(projectApi.includes('project_aliases'), false)
 
 const remediationHandler = backend.slice(
   backend.indexOf('type IssueCompletionState'),
-  backend.indexOf('// ============================================================\n// Reviewer Profile'),
+  backend.indexOf(
+    '// ============================================================\n// Reviewer Profile',
+  ),
 )
 assert.match(remediationHandler, /issue_status_verification/)
 assert.match(remediationHandler, /客户端状态只能作为观察值/)
@@ -96,7 +118,10 @@ const backendCreateIssue = backend.slice(
   backend.indexOf('export async function createIssue'),
   backend.indexOf('// ============================================================\n// 发布决议'),
 )
-assert.ok(backendCreateIssue.indexOf('REMEDIATION_ISSUE_TYPE_NOT_AVAILABLE') < backendCreateIssue.indexOf('/tasks/add3'))
+assert.ok(
+  backendCreateIssue.indexOf('REMEDIATION_ISSUE_TYPE_NOT_AVAILABLE') <
+    backendCreateIssue.indexOf('/tasks/add3'),
+)
 assert.match(backendCreateIssue, /REMEDIATION_ISSUE_TYPE_UNVERIFIED/)
 assert.match(backendCreateIssue, /link_type: 'remediation'/)
 assert.match(backend, /remediation_issue_type_uuid/)
@@ -110,7 +135,10 @@ const workspaceCreateIssue = workspace.slice(
   workspaceCreateIssueStart,
   workspace.indexOf('\n return (', workspaceCreateIssueStart),
 )
-assert.ok(workspaceCreateIssue.indexOf('resolveCreationIssueType()') < workspaceCreateIssue.indexOf('/tasks/add3'))
+assert.ok(
+  workspaceCreateIssue.indexOf('resolveCreationIssueType()') <
+    workspaceCreateIssue.indexOf('/tasks/add3'),
+)
 assert.match(workspaceCreateIssue, /已创建，但关联评审单失败/)
 assert.equal(workspaceCreateIssue.includes('} catch {}'), false)
 
@@ -118,25 +146,68 @@ const projectCreateIssue = projectPage.slice(
   projectPage.indexOf('async function handleCreateRemediationIssue'),
   projectPage.indexOf('async function handleLinkRemediationIssue'),
 )
-assert.ok(projectCreateIssue.indexOf('resolveProjectIssueTypes') < projectCreateIssue.indexOf('/tasks/add3'))
+assert.ok(
+  projectCreateIssue.indexOf('resolveProjectIssueTypes') <
+    projectCreateIssue.indexOf('/tasks/add3'),
+)
 assert.match(projectCreateIssue, /field_uuid: 'field007'/)
 assert.match(projectCreateIssue, /已创建，但关联评审单失败/)
 assert.match(remediationPanel, /disabled=\{creationBlocked\}/)
 assert.match(configPage, /remediation_issue_type_uuid: remediationIssueTypeUuid/)
 
 const entities = plugin.storage.entities
-const issueEntity = entities.find(entity => entity.name === 'ipd_linked_issue')
+const issueEntity = entities.find((entity) => entity.name === 'ipd_linked_issue')
 assert.ok(issueEntity.attributes.issue_status_verification)
 assert.ok(issueEntity.attributes.issue_status_category)
-assert.ok(entities.some(entity => entity.name === 'ipd_phase_guard'))
-const reviewEntity = entities.find(entity => entity.name === 'ipd_review')
+assert.ok(entities.some((entity) => entity.name === 'ipd_phase_guard'))
+const reviewEntity = entities.find((entity) => entity.name === 'ipd_review')
 assert.equal(reviewEntity.attributes.canonical_project_uuid, undefined)
 assert.equal(reviewEntity.attributes.phase_dependencies_snapshot_json, undefined)
 assert.match(backend, /resolution_rule_json:[\s\S]*frozenRuleJson/)
 
-assert.equal(plugin.abilities.some(ability => ability.abilityType === 'TaskEventHandler'), false)
-assert.ok(plugin.events.some(event => event.eventType === 'ones:project:issue-status:changed' && event.function === 'onIssueStatusChanged'))
-assert.equal(fs.existsSync('backend/src/task-event-handler.ts'), false)
+// —— 新架构（评审单主体 = 系统自定义工作项）——
+// 历史注记：旧版本曾移除 TaskEventHandler 并在此禁止；新架构将其恢复为流转守卫支柱，
+// 并以「流转意图」机制防止插件自身操作被拦截（旧打包坑已在 index.ts re-export 规避）。
+assert.equal(
+  plugin.abilities.some((ability) => ability.abilityType === 'TaskEventHandler'),
+  true,
+)
+assert.ok(fs.existsSync('backend/src/task-event-handler.ts'))
+assert.ok(fs.existsSync('backend/src/issue-service.ts'))
+assert.match(backend, /export \{ taskPreAction, taskActionDone \} from '.\/task-event-handler'/)
+assert.ok(
+  plugin.events.some(
+    (event) =>
+      event.eventType === 'ones:project:issue-status:changed' &&
+      event.function === 'onIssueStatusChanged',
+  ),
+)
+assert.ok(
+  plugin.events.some(
+    (event) =>
+      event.eventType === 'ones:project:issue:updated' && event.function === 'onIssueUpdated',
+  ),
+)
+// 意图机制：插件驱动变更前写意图，preAction 校验意图放行并消费
+assert.match(issueService, /export async function claimTransitionIntent/)
+assert.match(issueService, /export async function hasLiveIntent/)
+assert.match(taskHandler, /hasLiveIntent/)
+assert.match(taskHandler, /consumeTransitionIntent/)
+// createReview 必须以工作项为主键：先写 add 意图再创建工作项，失败释放阶段锁
+assert.match(backend, /claimTransitionIntent\(rvUuid, 'add'/)
+assert.match(backend, /createReviewIssue\(/)
+assert.match(backend, /issue_uuid: rvUuid/)
+// 状态机变更后必须推送工作项状态镜像（不阻塞业务，失败仅审计）
+assert.match(backend, /await mirrorState\(req/)
+// 守卫必须拦截：绕过插件的新建 / 手动流转 / 受保护字段修改 / 类型变更
+assert.match(taskHandler, /不允许手动新建该类型工作项/)
+assert.match(taskHandler, /由评审流程驱动/)
+assert.match(taskHandler, /由IPD评审流程维护/)
+assert.match(taskHandler, /不允许变更IPD评审单的工作项类型/)
+// 列表/工作台/总览必须优先跳转原生工作项详情
+assert.match(projectPage, /function openReviewEntry/)
+assert.match(workspace, /issue_number/)
+assert.match(backend, /issue_number: createdIssue.number/)
 assert.match(remediationHandler, /REMEDIATION_NOT_DONE/)
 assert.match(remediationHandler, /REMEDIATION_STATUS_UNKNOWN/)
 assert.match(remediationHandler, /已全部完成，请确认并发起复审/)
@@ -157,4 +228,6 @@ assert.match(projectPage, /一键降级为/)
 assert.match(configPage, /gatePolicy\?\.indicatorRedLine/)
 assert.match(configPage, /gatePolicy\?\.checklistComplete/)
 
-console.log('Review guardrails verified: canonical prerequisites, phase uniqueness, evidence freeze, remediation status flow, and resolution gate enforcement.')
+console.log(
+  'Review guardrails verified: canonical prerequisites, phase uniqueness, evidence freeze, remediation status flow, and resolution gate enforcement.',
+)

@@ -11,7 +11,12 @@ const require = createRequire(import.meta.url)
 const pluginYamlPath = join(__dirname, 'config', 'plugin.yaml')
 const pluginConfig = load(readFileSync(pluginYamlPath, 'utf8'))
 const version = pluginConfig?.service?.version ?? ''
-const fetchNodeDistPath = join(dirname(require.resolve('@ones-op/fetch/package.json')), 'dist', 'node', 'index.js')
+const fetchNodeDistPath = join(
+  dirname(require.resolve('@ones-op/fetch/package.json')),
+  'dist',
+  'node',
+  'index.js',
+)
 const moduleAboutBlankIDArray =
   pluginConfig?.modules
     ?.filter((module) => module?.moduleType === 'about:blank')
@@ -42,7 +47,10 @@ function stripTypeScriptSyntax() {
         fileName: id,
         reportDiagnostics: false,
       })
-      return { code: result.outputText, map: result.sourceMapText ? JSON.parse(result.sourceMapText) : null }
+      return {
+        code: result.outputText,
+        map: result.sourceMapText ? JSON.parse(result.sourceMapText) : null,
+      }
     },
   }
 }
@@ -59,16 +67,19 @@ export default function defineRollupConfig(config, context) {
   // console.log('context', context)
   // console.log('--------------------------------')
   const plugins = config.plugins || []
+  // 顺序说明：rc-cli 默认插件（含 rollup-plugin-typescript2 的类型检查）必须在前，
+  // 让检查器看到原始 TypeScript；stripTypeScriptSyntax 放末端做输出兜底清洗，
+  // 避免检查器读到 strip 后的 JS 而产生整批误报（never[]/null 推断问题）。
   config.plugins = [
-    stripTypeScriptSyntax(),
-    forceOnesFetchNodeDist(),
+    ...plugins,
     replace({
-      preventAssignment: true,
+      'preventAssignment': true,
       'process.env.BACKEND_CUSTOM_VALUE': JSON.stringify('backend-custom-value'),
       'process.env.VERSION': JSON.stringify(version),
       'process.env.MODULE_ABOUT_BLANK_ID_ARRAY': JSON.stringify(moduleAboutBlankIDArray),
     }),
-    ...plugins,
+    forceOnesFetchNodeDist(),
+    stripTypeScriptSyntax(),
   ]
   return config
 }
