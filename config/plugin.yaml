@@ -4,7 +4,7 @@ service:
   description: >-
     团队级DCP/TR评审插件（新架构）。评审单主体由系统自定义工作项承载：原生工作项详情页 +
     插件自定义Tab呈现评审过程，插件承载评审/审批全过程（会签、决议规则、门禁、不可覆盖快照），TaskEventHandler 守卫流转。
-  version: 1.0.0
+  version: 1.0.5
   mode: org
   logo: null
   language: nodejs
@@ -28,6 +28,14 @@ service:
     - name: 查看 IPD 评审总览
       field: ipd_view_review
       desc: 允许查看团队DCP评审总览页面
+oauth:
+  type:
+    - admin
+  scope:
+    - read:project:issueType
+    - read:project:issueStatus
+    - read:project:issueField
+    - write:project:issue
 modules:
   - id: ipd-review-tab
     moduleType: ones:project:component:new
@@ -85,12 +93,12 @@ abilities:
     config:
       - key: component_name
         label: 组件名称
-        value: DCP评审
+        value: IPD评审
         fieldType: Input
         show: true
       - key: component_desc
         label: 组件描述
-        value: DCP决策评审控制台
+        value: IPD决策评审控制台
         fieldType: TextArea
         show: true
       - key: is_support_copy
@@ -123,18 +131,25 @@ abilities:
     function:
       taskPreActionFunc: taskPreAction
       taskActionDoneFunc: taskActionDone
+    # 拦截范围不在平台侧声明（值留空 = 平台不过滤事件），由插件按
+    # 「工作项映射」配置的类型/字段自行判断；配置入口见侧边栏「模板配置」。
     config:
       - fieldType: Input
         key: issueTypeScope
-        show: true
+        show: false
         label: 评审单工作项类型
-        value: IPD评审单
+        value: ''
       - fieldType: Input
         key: field
-        show: true
+        show: false
         label: 受保护的工作项属性
-        value: 会议时间,评审轮次,评审结论
+        value: ''
 apis:
+  - type: external
+    methods:
+      - GET
+    url: /team/:teamUUID/ipd/mapping/options
+    function: apiGetMappingOptions
   - type: external
     methods:
       - GET

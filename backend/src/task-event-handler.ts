@@ -22,7 +22,7 @@ import {
   hasLiveIntent,
   consumeTransitionIntent,
   getReviewIssueTypeConfig,
-  PROTECTED_FIELD_NAMES,
+  getProtectedFieldNames,
 } from './issue-service'
 
 function preActionResponse(
@@ -115,18 +115,18 @@ export async function taskPreAction(request: any): Promise<any> {
       if (!rv) continue
       follow = true
       const fields = Array.isArray(ev?.task_fields) ? ev.task_fields : []
+      const protectedNames = await getProtectedFieldNames()
       const touchedProtected = fields.some(
         (f: any) =>
-          PROTECTED_FIELD_NAMES.has(String(f?.field_name || '')) ||
-          PROTECTED_FIELD_NAMES.has(String(f?.field_name_map?.zh || '')),
+          protectedNames.has(String(f?.field_name || '')) ||
+          protectedNames.has(String(f?.field_name_map?.zh || '')),
       )
       if (touchedProtected) {
         if (await hasLiveIntent(taskUuid)) {
           await consumeTransitionIntent(taskUuid)
         } else {
           isReject = true
-          rejectReason =
-            '「会议时间 / 评审轮次 / 评审结论」由IPD评审流程维护，请在工作项详情页「评审过程」Tab 中操作'
+          rejectReason = `「${[...protectedNames].join(' / ')}」由IPD评审流程维护，请在工作项详情页「评审过程」Tab 中操作`
         }
       }
       // 标题等其他字段允许原生编辑，由 onIssueUpdated 事件同步回插件存储

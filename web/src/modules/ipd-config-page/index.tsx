@@ -217,6 +217,8 @@ const App: React.FC = () => {
   const [reviewIssueTypeUuid, setReviewIssueTypeUuid] = useState('')
   const [reviewStatusMapText, setReviewStatusMapText] = useState('')
   const [issueTransportText, setIssueTransportText] = useState('')
+  // 工作项映射：字段映射（OpenAPI 由后端以插件身份自动鉴权，无需配置凭据）
+  const [reviewFieldMapText, setReviewFieldMapText] = useState('')
   const [profiles, setProfiles] = useState<any[]>([])
   const [projectBindings, setProjectBindings] = useState<any[]>([])
 
@@ -279,6 +281,7 @@ const App: React.FC = () => {
       setReviewIssueType(data.config?.review_issue_type || '')
       setReviewIssueTypeUuid(data.config?.review_issue_type_uuid || '')
       setReviewStatusMapText(data.config?.review_status_map || '')
+      setReviewFieldMapText(data.config?.review_field_map || '')
       if (data.ipd_flow_layout) setIpdFlowLayout(data.ipd_flow_layout)
       if (data.resolution_rule_config) setResolutionRules(data.resolution_rule_config)
       setProfiles(profileData.profiles || [])
@@ -327,6 +330,16 @@ const App: React.FC = () => {
           return
         }
       }
+      if (reviewFieldMapText.trim()) {
+        try {
+          const fm = JSON.parse(reviewFieldMapText)
+          if (!fm || typeof fm !== 'object' || Array.isArray(fm)) throw new Error('not object')
+        } catch {
+          setMessage('字段映射必须是合法 JSON 对象（如 {"meeting_time":"会议时间"}）')
+          setSaving(false)
+          return
+        }
+      }
       const normPhase = (arr: any[]) =>
         arr.map((x) => ({
           ...x,
@@ -351,6 +364,7 @@ const App: React.FC = () => {
           review_issue_type: reviewIssueType,
           review_issue_type_uuid: reviewIssueTypeUuid,
           review_status_map: reviewStatusMapText.trim(),
+          review_field_map: reviewFieldMapText.trim(),
           ...(issueTransportText.trim()
             ? { issue_transition_transport: issueTransportText.trim() }
             : {}),
@@ -542,6 +556,7 @@ const App: React.FC = () => {
             issueTypeUuid={reviewIssueTypeUuid}
             statusMapText={reviewStatusMapText}
             transportText={issueTransportText}
+            fieldMapText={reviewFieldMapText}
             onChange={(patch: any) => {
               if (patch.type !== undefined) {
                 setReviewIssueType(patch.type)
@@ -549,6 +564,7 @@ const App: React.FC = () => {
               }
               if (patch.statusMap !== undefined) setReviewStatusMapText(patch.statusMap)
               if (patch.transport !== undefined) setIssueTransportText(patch.transport)
+              if (patch.fieldMap !== undefined) setReviewFieldMapText(patch.fieldMap)
             }}
             editing={editing}
           />
@@ -1781,28 +1797,82 @@ const REVIEW_STATES: { key: string; label: string }[] = [
   { key: 'archived', label: '已归档' },
 ]
 
+// 字段映射元数据：与 backend DEFAULT_REVIEW_FIELD_MAP 对应（label 即默认字段名）。
+// 建议管理员在标品按 label 建同名字段，插件端零配置生效。
+const FIELD_DEFS: { key: string; label: string; required?: boolean; typeHint: string }[] = [
+  { key: 'meeting_time', label: '会议时间', required: true, typeHint: '日期字段' },
+  { key: 'round_no', label: '评审轮次', required: true, typeHint: '整数字段' },
+  {
+    key: 'final_conclusion',
+    label: '评审结论',
+    required: true,
+    typeHint: '单选：通过/有条件通过/驳回/不通过/返工',
+  },
+  { key: 'phase_code', label: '评审阶段', typeHint: '单选：DCP1~DCP5、TR1~TR6' },
+  { key: 'review_type', label: '评审类型', typeHint: '单选：DCP/TR' },
+  { key: 'review_number', label: '评审编号', typeHint: '文本（可选，工作项自身编号已唯一）' },
+  { key: 'condition_notes', label: '决议条件说明', typeHint: '多行文本（可选）' },
+]
+
 const IssueMappingSettings: React.FC<{
   issueType: string
   issueTypeUuid: string
   statusMapText: string
   transportText: string
+  fieldMapText: string
   onChange: (patch: {
     type?: string
     typeUuid?: string
     statusMap?: string
     transport?: string
+    fieldMap?: string
   }) => void
   editing: boolean
-}> = ({ issueType, issueTypeUuid, statusMapText, transportText, onChange, editing }) => {
-  const [issueTypes, setIssueTypes] = useState<{ uuid: string; name: string }[]>([])
-  const [loading, setLoading] = useState(false)
+}> = ({
+  issueType,
+  issueTypeUuid,
+  statusMapText,
+  transportText,
+  fieldMapText,
+  onChange,
+  editing,
+}) => {
+  // 内部 GraphQL 类型列表（OpenAPI 不可用时的回退数据源）
+  const [gqlTypes, setGqlTypes] = useState<{ uuid: string; name: string }[]>([])
+  const [gqlLoading, setGqlLoading] = useState(false)
+  // OpenAPI 映射选项（类型/状态/字段三列表，后端以插件身份自动鉴权）
+  const [options, setOptions] = useState<{
+    issueTypes: { id: string; name: string }[]
+    issueStatuses: { id: string; name: string; category: string }[]
+    issueFields: { id: string; name: string; typeLabel: string; options: string[] }[]
+  } | null>(null)
+  const [optionsLoading, setOptionsLoading] = useState(false)
+  const [optionsError, setOptionsError] = useState('')
   const [open, setOpen] = useState(false)
+  const [preselectDone, setPreselectDone] = useState(false)
   const ref = React.useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const tu = getTeamUUID()
     if (!tu) return
-    setLoading(true)
+    // 插件后端代理的 OpenAPI 团队级列表（FetchAsAdmin 插件身份鉴权，无需配置凭据）
+    setOptionsLoading(true)
+    apiGet('/ipd/mapping/options')
+      .then((data: any) => {
+        setOptions({
+          issueTypes: data?.issueTypes || [],
+          issueStatuses: data?.issueStatuses || [],
+          issueFields: data?.issueFields || [],
+        })
+        setOptionsError('')
+      })
+      .catch((e: any) => {
+        setOptions(null)
+        setOptionsError(e?.message || String(e))
+      })
+      .finally(() => setOptionsLoading(false))
+    // 回退：内部 GraphQL 类型列表
+    setGqlLoading(true)
     fetch(`/project/api/project/team/${tu}/items/graphql?t=issueTypes`, {
       method: 'POST',
       credentials: 'include',
@@ -1815,14 +1885,14 @@ const IssueMappingSettings: React.FC<{
       .then((r) => r.json())
       .then((gql) => {
         const raw = gql?.data?.issueTypes || []
-        setIssueTypes(
+        setGqlTypes(
           raw
             .map((t: any) => ({ uuid: t.uuid || '', name: t.name || '' }))
             .filter((t: any) => t.name),
         )
       })
       .catch(() => {})
-      .finally(() => setLoading(false))
+      .finally(() => setGqlLoading(false))
   }, [])
 
   useEffect(() => {
@@ -1834,19 +1904,165 @@ const IssueMappingSettings: React.FC<{
     return () => document.removeEventListener('mousedown', handleClick)
   }, [open])
 
-  const kw = issueType.toLowerCase()
-  const filtered = kw ? issueTypes.filter((t) => t.name.toLowerCase().includes(kw)) : issueTypes
+  // 类型选项：OpenAPI 优先，回退内部 GraphQL
+  const typeOptions: { uuid: string; name: string }[] = options
+    ? options.issueTypes.map((t) => ({ uuid: t.id, name: t.name }))
+    : gqlTypes
+
+  // 智能预选：编辑态 + 尚未配置类型 + 团队存在「IPD评审单」类型 → 预填（仍需保存生效）
+  useEffect(() => {
+    if (preselectDone || !editing) return
+    if (issueType || issueTypeUuid) {
+      setPreselectDone(true)
+      return
+    }
+    const hit = typeOptions.find((t) => t.name === 'IPD评审单')
+    if (hit) {
+      setPreselectDone(true)
+      onChange({ type: hit.name, typeUuid: hit.uuid })
+    }
+  }, [editing, typeOptions, issueType, issueTypeUuid, preselectDone, onChange])
+
+  // 解析字段映射（默认值兜底；与 backend DEFAULT_REVIEW_FIELD_MAP 一致）
+  const parsedFieldMap: Record<string, { name: string; uuid?: string }> = {}
+  for (const def of FIELD_DEFS) parsedFieldMap[def.key] = { name: def.label }
+  if (fieldMapText.trim()) {
+    try {
+      const parsed = JSON.parse(fieldMapText)
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        for (const def of FIELD_DEFS) {
+          const v = (parsed as any)[def.key]
+          if (typeof v === 'string' && v.trim()) {
+            parsedFieldMap[def.key] = { name: v.trim() }
+          } else if (v && typeof v === 'object' && v.name) {
+            parsedFieldMap[def.key] = {
+              name: String(v.name),
+              ...(v.uuid ? { uuid: String(v.uuid) } : {}),
+            }
+          }
+        }
+      }
+    } catch {
+      /* 保存时校验 */
+    }
+  }
+  const fieldNames = new Map<string, string>()
+  const fieldMeta = new Map<string, { typeLabel: string; options: string[] }>()
+  for (const f of options?.issueFields || []) {
+    if (!fieldNames.has(f.name)) fieldNames.set(f.name, f.id)
+    fieldMeta.set(f.name, { typeLabel: f.typeLabel, options: f.options })
+  }
+
+  const updateFieldBinding = (key: string, name: string) => {
+    const next = { ...parsedFieldMap }
+    const trimmed = name.trim()
+    if (trimmed) {
+      const uuid = fieldNames.get(trimmed)
+      next[key] = uuid ? { name: trimmed, uuid } : { name: trimmed }
+    }
+    // 序列化只保留与默认不同的项（等默认值的不存，配置体积最小）
+    const out: Record<string, any> = {}
+    for (const def of FIELD_DEFS) {
+      const b = next[def.key]
+      if (!b) continue
+      if (b.name === def.label && !b.uuid) continue
+      out[def.key] = b.uuid ? { name: b.name, uuid: b.uuid } : b.name
+    }
+    onChange({ fieldMap: JSON.stringify(out) })
+  }
+
   let parsedMap: Record<string, string> = {}
   try {
     parsedMap = statusMapText.trim() ? JSON.parse(statusMapText) : {}
   } catch {
     /* 保存时校验 */
   }
+  const setStatusBinding = (key: string, uuid: string) => {
+    const next = { ...parsedMap }
+    if (uuid) next[key] = uuid
+    else delete next[key]
+    onChange({ statusMap: JSON.stringify(next) })
+  }
+
+  // 完成度：类型/必配字段/状态映射
+  const requiredKeys = FIELD_DEFS.filter((d) => d.required).map((d) => d.key)
+  const requiredMatched = options
+    ? requiredKeys.filter((k) => fieldNames.has(parsedFieldMap[k]?.name || '')).length
+    : -1
+  const mappedStates = REVIEW_STATES.filter((s) => parsedMap[s.key]).length
+
+  const kw = issueType.toLowerCase()
+  const filtered = kw ? typeOptions.filter((t) => t.name.toLowerCase().includes(kw)) : typeOptions
+  const typeReady = Boolean(issueType && issueTypeUuid)
+
+  const stepBadge = (ok: boolean, text: string) => (
+    <span
+      style={{
+        fontSize: 11,
+        padding: '2px 8px',
+        borderRadius: 8,
+        background: ok ? '#f6ffed' : '#fff1f0',
+        color: ok ? '#52c41a' : '#cf1322',
+        border: `1px solid ${ok ? '#b7eb8f' : '#ffa39e'}`,
+      }}
+    >
+      {text}
+    </span>
+  )
+
+  const gateNotice = (
+    <div
+      style={{
+        marginBottom: 20,
+        padding: 12,
+        background: '#fffbe6',
+        borderRadius: 8,
+        color: '#8c6d1f',
+        fontSize: 13,
+      }}
+    >
+      请先在上方「第 1 步」选择评审单工作项类型，再配置字段与状态映射。
+    </div>
+  )
 
   return (
     <div>
-      <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 16 }}>
+      <div
+        style={{
+          fontSize: 14,
+          fontWeight: 600,
+          marginBottom: 8,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+        }}
+      >
         工作项映射 {editing ? '— 编辑中' : '— 只读'}
+        {options ? (
+          <span
+            style={{
+              fontSize: 11,
+              padding: '2px 8px',
+              borderRadius: 8,
+              background: '#e6f4ff',
+              color: '#1677ff',
+            }}
+          >
+            数据源：OpenAPI（插件身份）
+          </span>
+        ) : (
+          <span
+            style={{
+              fontSize: 11,
+              padding: '2px 8px',
+              borderRadius: 8,
+              background: '#f5f5f5',
+              color: '#999',
+            }}
+          >
+            数据源：回退模式{optionsError ? '（OpenAPI 拉取失败）' : ''}
+          </span>
+        )}
       </div>
       {!editing && (
         <div style={{ marginBottom: 16, color: '#999', fontSize: 12 }}>
@@ -1854,9 +2070,49 @@ const IssueMappingSettings: React.FC<{
         </div>
       )}
 
+      {/* 配置完成度总览 */}
+      <div
+        style={{
+          marginBottom: 20,
+          padding: 12,
+          background: '#f9f9f9',
+          borderRadius: 8,
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 10,
+          alignItems: 'center',
+        }}
+      >
+        <span style={{ fontWeight: 600, fontSize: 13 }}>配置完成度：</span>
+        {typeReady ? stepBadge(true, '类型已选择') : stepBadge(false, '类型未配置（必配）')}
+        {requiredMatched >= 0
+          ? requiredMatched === requiredKeys.length
+            ? stepBadge(true, `必配字段 ${requiredMatched}/${requiredKeys.length}`)
+            : stepBadge(
+                false,
+                `必配字段 ${requiredMatched}/${requiredKeys.length}（类型上缺同名字段）`,
+              )
+          : stepBadge(true, `字段映射 ${FIELD_DEFS.length} 项（默认值，未校验）`)}
+        {mappedStates === REVIEW_STATES.length
+          ? stepBadge(true, `状态映射 ${mappedStates}/${REVIEW_STATES.length}`)
+          : stepBadge(mappedStates > 0, `状态映射 ${mappedStates}/${REVIEW_STATES.length}`)}
+      </div>
+
+      {optionsLoading && (
+        <div style={{ color: '#999', fontSize: 12, marginBottom: 12 }}>
+          正在加载团队类型/字段/状态列表…
+        </div>
+      )}
+      {optionsError && (
+        <div style={{ color: '#cf1322', fontSize: 12, marginBottom: 12 }}>
+          映射选项加载失败：{optionsError}（类型下拉已回退内部数据源；字段/状态请手动输入）
+        </div>
+      )}
+
+      {/* 第 1 步：评审单工作项类型 */}
       <div style={{ marginBottom: 20, padding: 12, background: '#f9f9f9', borderRadius: 8 }}>
         <label style={{ display: 'block', fontWeight: 600, fontSize: 14, marginBottom: 8 }}>
-          评审单工作项类型（必配）
+          第 1 步 · 评审单工作项类型（必配）
         </label>
         <div style={{ color: '#999', fontSize: 12, marginBottom: 8 }}>
           新架构下评审单以系统自定义工作项承载：请先由团队管理员在「配置中心 → 项目管理配置 →
@@ -1895,8 +2151,10 @@ const IssueMappingSettings: React.FC<{
                   boxShadow: '0 2px 8px rgba(0,0,0,.15)',
                 }}
               >
-                {loading && <div style={{ padding: 8, color: '#999', fontSize: 12 }}>加载中…</div>}
-                {!loading && filtered.length === 0 && (
+                {(optionsLoading || gqlLoading) && (
+                  <div style={{ padding: 8, color: '#999', fontSize: 12 }}>加载中…</div>
+                )}
+                {!optionsLoading && !gqlLoading && filtered.length === 0 && (
                   <div style={{ padding: 8, color: '#999', fontSize: 12 }}>无匹配类型</div>
                 )}
                 {filtered.map((t) => {
@@ -1932,52 +2190,132 @@ const IssueMappingSettings: React.FC<{
         )}
       </div>
 
-      <div style={{ marginBottom: 20, padding: 12, background: '#f9f9f9', borderRadius: 8 }}>
-        <label style={{ display: 'block', fontWeight: 600, fontSize: 14, marginBottom: 8 }}>
-          评审状态 → 工作流状态映射
-        </label>
-        <div style={{ color: '#999', fontSize: 12, marginBottom: 8 }}>
-          为评审单工作项类型配置与左侧评审状态同名（或对应）的工作流状态，并在此填写 JSON
-          映射（评审状态 → 工作流状态 UUID）。未映射的状态不会同步到工作项。
+      {/* 第 2 步：字段映射 */}
+      {typeReady ? (
+        <div style={{ marginBottom: 20, padding: 12, background: '#f9f9f9', borderRadius: 8 }}>
+          <label style={{ display: 'block', fontWeight: 600, fontSize: 14, marginBottom: 8 }}>
+            第 2 步 · 评审字段映射（评审数据 ↔ 工作项自定义字段）
+          </label>
+          <div style={{ color: '#999', fontSize: 12, marginBottom: 10 }}>
+            在评审单工作项类型上创建下表字段（建议同名的可零配置生效），插件会把会议时间/轮次/结论等写回工作项；
+            前三项为必配：由评审流程维护，手工在工作项上修改会被守卫拦截。
+            {options && ' 已加载团队字段列表，输入时可从下拉选择并自动校验同名字段。'}
+          </div>
+          {FIELD_DEFS.map((def) => {
+            const binding = parsedFieldMap[def.key] || { name: '' }
+            const matched = fieldMeta.get(binding.name)
+            const exists = fieldNames.has(binding.name)
+            return (
+              <div
+                key={def.key}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  marginBottom: 8,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div style={{ width: 130, fontSize: 13, color: '#333', flexShrink: 0 }}>
+                  {def.required ? <span style={{ color: '#cf1322' }}>* </span> : null}
+                  {def.label}
+                </div>
+                <input
+                  style={{ ...S.input, flex: '1 1 220px' }}
+                  list={`ipd-fm-${def.key}`}
+                  value={binding.name}
+                  disabled={!editing}
+                  onChange={(e) => updateFieldBinding(def.key, e.target.value)}
+                  placeholder={`工作项上的字段名（默认：${def.label}）`}
+                />
+                <datalist id={`ipd-fm-${def.key}`}>
+                  {(options?.issueFields || []).map((f) => (
+                    <option key={f.id} value={f.name} />
+                  ))}
+                </datalist>
+                <span style={{ fontSize: 11, color: '#999', flex: '1 1 160px' }}>
+                  {def.typeHint}
+                  {matched
+                    ? ` · ${matched.typeLabel || '已匹配'}`
+                    : options && binding.name && !exists
+                      ? ' · 未找到同名字段'
+                      : ''}
+                </span>
+              </div>
+            )
+          })}
         </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>
+      ) : (
+        gateNotice
+      )}
+
+      {/* 第 3 步：状态映射 */}
+      {typeReady ? (
+        <div style={{ marginBottom: 20, padding: 12, background: '#f9f9f9', borderRadius: 8 }}>
+          <label style={{ display: 'block', fontWeight: 600, fontSize: 14, marginBottom: 8 }}>
+            第 3 步 · 评审状态 → 工作流状态映射
+          </label>
+          <div style={{ color: '#999', fontSize: 12, marginBottom: 10 }}>
+            为评审单工作项类型创建与下列评审状态同名（或对应）的工作流状态，并逐一选择映射。
+            状态流转由插件评审流程驱动自动同步，无需在工作流中配置流转条件。未映射的状态不会同步到工作项。
+          </div>
           {REVIEW_STATES.map((s) => (
-            <span
+            <div
               key={s.key}
               style={{
-                fontSize: 11,
-                padding: '1px 8px',
-                borderRadius: 8,
-                background: parsedMap[s.key] ? '#f6ffed' : '#fff1f0',
-                color: parsedMap[s.key] ? '#52c41a' : '#cf1322',
-                border: `1px solid ${parsedMap[s.key] ? '#b7eb8f' : '#ffa39e'}`,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                marginBottom: 8,
+                flexWrap: 'wrap',
               }}
             >
-              {s.label}
-              {parsedMap[s.key] ? '✓' : '未映射'}
-            </span>
+              <div style={{ width: 130, fontSize: 13, color: '#333', flexShrink: 0 }}>
+                {s.label}
+              </div>
+              {options && options.issueStatuses.length > 0 ? (
+                <select
+                  style={{ ...S.input, flex: '1 1 220px' }}
+                  value={parsedMap[s.key] || ''}
+                  disabled={!editing}
+                  onChange={(e) => setStatusBinding(s.key, e.target.value)}
+                >
+                  <option value="">未映射</option>
+                  {options.issueStatuses.map((st) => (
+                    <option key={st.id} value={st.id}>
+                      {st.name}
+                      {st.category ? `（${st.category}）` : ''}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  style={{ ...S.input, flex: '1 1 220px', fontFamily: 'monospace', fontSize: 12 }}
+                  value={parsedMap[s.key] || ''}
+                  disabled={!editing}
+                  onChange={(e) => setStatusBinding(s.key, e.target.value.trim())}
+                  placeholder="工作流状态 UUID（团队状态列表加载失败时可手动填写）"
+                />
+              )}
+              {parsedMap[s.key] ? stepBadge(true, '已映射') : stepBadge(false, '未映射')}
+            </div>
           ))}
         </div>
-        <textarea
-          style={{ ...S.input, fontFamily: 'monospace', fontSize: 12, height: 110 }}
-          value={statusMapText}
-          disabled={!editing}
-          onChange={(e) => onChange({ statusMap: e.target.value })}
-          placeholder={
-            '{\n  "draft": "工作流状态UUID",\n  "reviewing": "工作流状态UUID",\n  ...\n}'
-          }
-        />
-      </div>
+      ) : (
+        gateNotice
+      )}
 
+      {/* 高级：流转传输配置 */}
       <div style={{ marginBottom: 12, padding: 12, background: '#f9f9f9', borderRadius: 8 }}>
         <label style={{ display: 'block', fontWeight: 600, fontSize: 14, marginBottom: 8 }}>
           流转传输配置（高级，可选）
         </label>
         <div style={{ color: '#999', fontSize: 12, marginBottom: 8 }}>
-          默认使用内部 GraphQL 尝试同步工作项状态（待环境验证）。如需改用
-          OpenAPI（组织凭据），在此填写 JSON：
+          默认以插件身份自动调用 OpenAPI 同步工作项状态（失败时回退内部 GraphQL，尽力而为）。
+          仅在个别环境需要覆盖传输行为时（如指定自建网关凭据、修改路径/GraphQL 模板），在此填写
+          JSON：
           {
-            '{ "openapi": { "host": "https://ones.example.com", "token": "组织凭据token", "path_template": "/openapi/v2/project/teams/{team}/issues/{issue}/workflow" } }'
+            '{ "openapi": { "host": "https://ones.example.com", "token": "凭据token", "path_template": "/openapi/v2/project/teams/{team}/issues/{issue}/workflow" }, "internal": { "query_template": "mutation { updateTask(uuid: \\"{issue_uuid}\\", status_uuid: \\"{status_uuid}\\") { uuid } }" } }'
           }
           。 出于安全考虑该配置只写不读（保存后不回显）。
         </div>
@@ -1999,7 +2337,9 @@ const IssueMappingSettings: React.FC<{
           color: '#1677ff',
         }}
       >
-        配置完成后：创建评审单将自动生成对应工作项；评审动作驱动状态流转并同步工作项；手动在工作项上改状态/改受保护字段会被插件守卫拦截。
+        配置完成后：创建评审单将自动生成对应工作项并写入初始字段；评审动作驱动状态流转并同步工作项；
+        会议时间/评审轮次/评审结论等由插件写回，手动在工作项上修改会被守卫拦截。完整步骤见仓库
+        docs/工作项映射指南.md。
       </div>
     </div>
   )

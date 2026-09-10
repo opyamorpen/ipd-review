@@ -201,6 +201,37 @@ assert.match(backend, /createReviewIssue\(/)
 assert.match(backend, /issue_uuid: rvUuid/)
 // 状态机变更后必须推送工作项状态镜像（不阻塞业务，失败仅审计）
 assert.match(backend, /await mirrorState\(req/)
+// 工作项映射：平台侧不做事件过滤（issueTypeScope/field 留空+隐藏），
+// 类型/字段/状态识别唯一来源是插件配置页（review_field_map / review_status_map）
+const guardAbility = plugin.abilities.find((a) => a.abilityType === 'TaskEventHandler')
+const scopeCfg = (guardAbility?.config || []).find((c) => c.key === 'issueTypeScope')
+const guardFieldCfg = (guardAbility?.config || []).find((c) => c.key === 'field')
+assert.ok(scopeCfg && scopeCfg.show === false && String(scopeCfg.value ?? '') === '')
+assert.ok(guardFieldCfg && guardFieldCfg.show === false && String(guardFieldCfg.value ?? '') === '')
+// 映射选择器数据源：后端代理 OpenAPI 团队级列表（类型/状态/字段），凭据不出后端
+assert.ok(
+  plugin.apis.some(
+    (a) => a.url === '/team/:teamUUID/ipd/mapping/options' && a.function === 'apiGetMappingOptions',
+  ),
+)
+assert.match(backend, /export async function getMappingOptions/)
+assert.match(backend, /apiGetMappingOptions = withAuthorization\('admin'/)
+assert.match(issueService, /loadMappingOptionsViaOpenApi/)
+assert.match(issueService, /openapi\/v2\/project\//)
+// 字段映射系统：默认映射 + 动态受保护字段（静态 Set 必须移除，避免与配置脱节）
+assert.match(issueService, /DEFAULT_REVIEW_FIELD_MAP/)
+assert.match(issueService, /export async function getReviewFieldMap/)
+assert.match(issueService, /export async function getProtectedFieldNames/)
+assert.equal(issueService.includes('PROTECTED_FIELD_NAMES'), false)
+assert.match(taskHandler, /getProtectedFieldNames/)
+// 字段镜像：创建即写初始字段；会议时间/轮次/结论变更写回工作项（尽力模式）
+assert.match(issueService, /export async function pushFieldMirror/)
+assert.match(backend, /await mirrorFields\(req/)
+assert.match(backend, /initialFieldValues/)
+// 配置页：三步映射引导 + OpenAPI 连接 + 字段映射
+assert.match(configPage, /FIELD_DEFS/)
+assert.match(configPage, /review_field_map/)
+assert.match(configPage, /ipd\/mapping\/options/)
 // 守卫必须拦截：绕过插件的新建 / 手动流转 / 受保护字段修改 / 类型变更
 assert.match(taskHandler, /不允许手动新建该类型工作项/)
 assert.match(taskHandler, /由评审流程驱动/)

@@ -13,6 +13,7 @@ const reviewerWorkspace = fs.readFileSync(
 const expectedPolicies = {
   apiGetIpdConfig: 'identity',
   apiSavePluginConfig: 'admin',
+  apiGetMappingOptions: 'admin',
   apiCreateReview: 'create',
   apiGetReviewDetail: 'review-read',
   apiListReviewsByProject: 'project-read',

@@ -13,12 +13,15 @@ import { Notify, NotifyWay } from '@ones-op/node-ability'
 import {
   createReviewIssue,
   pushStateMirror,
+  pushFieldMirror,
   makeIssueUuid,
   attemptDeleteReviewIssue,
   claimTransitionIntent,
   consumeTransitionIntent,
   getReviewIssueTypeConfig,
   findReviewByIssueUuid,
+  getReviewFieldMap,
+  loadMappingOptionsViaOpenApi,
 } from './issue-service'
 
 // TaskEventHandler 能力函数必须从 index.ts re-export，否则 packup 不打包 → 运行时 500
@@ -29,6 +32,19 @@ async function mirrorState(req: any, rid: string, targetState: string, actor: st
   const tuid = getParam(req, 'team_uuid')
   if (!tuid) return
   await pushStateMirror({ teamUUID: tuid, taskUuid: rid, targetState, actorUuid: actor })
+}
+
+// 字段镜像推送：评审数据（会议时间/轮次/结论等）变更后写回工作项自定义字段（尽力模式）
+async function mirrorFields(
+  req: any,
+  rid: string,
+  actor: string,
+  values: Record<string, any>,
+  title?: string,
+) {
+  const tuid = getParam(req, 'team_uuid')
+  if (!tuid) return
+  await pushFieldMirror({ teamUUID: tuid, taskUuid: rid, actorUuid: actor, values, title })
 }
 
 // ============================================================
@@ -1986,15 +2002,15 @@ function buildStateTransition(
 // 配置
 // ============================================================
 export async function getPluginConfig(_req: any): Promise<PluginResponse> {
-  // 新架构新增键：评审单工作项类型与状态映射（供配置页展示）。
-  // 注意：openapi_token / issue_transition_transport 不在返回列表——本接口是 identity
-  // 策略（所有用户可调），凭据类配置只写不读，防止 token 泄露。
+  // 新架构新增键：评审单工作项类型、字段映射与状态映射（供配置页展示）。
+  // 注意：issue_transition_transport 不在返回列表——凭据类配置只写不读，防止 token 泄露。
   const keys = [
     'default_resolution_template',
     'remediation_issue_type',
     'remediation_issue_type_uuid',
     'review_issue_type',
     'review_issue_type_uuid',
+    'review_field_map',
     'review_status_map',
   ]
   const config: any = {}
@@ -2125,6 +2141,21 @@ export async function savePluginConfig(req: any): Promise<PluginResponse> {
   } catch (err: any) {
     Logger.error('[IPD] Config save failed:', err.message)
     return { body: { error: err.message }, statusCode: 500 }
+  }
+}
+
+// 工作项映射选择器数据源（admin 策略）：OpenAPI 团队级列表（类型/状态/字段）。
+// 后端经 FetchAsAdmin 以插件身份自动鉴权，无需管理员配置凭据；
+// 失败时前端回退（类型走内部 GraphQL、字段/状态手动输入）。
+export async function getMappingOptions(req: any): Promise<PluginResponse> {
+  const teamUUID = getParam(req, 'team_uuid') || getParam(req, 'teamUUID')
+  if (!teamUUID) return { body: { error: '无法获取 team_uuid' }, statusCode: 400 }
+  try {
+    const options = await loadMappingOptionsViaOpenApi(teamUUID)
+    return { body: { ...options } }
+  } catch (e: any) {
+    Logger.error(`[IPD] mapping options via openapi failed: ${e?.message || e}`)
+    return { body: { error: `OpenAPI 拉取映射选项失败: ${e?.message || e}` }, statusCode: 502 }
   }
 }
 
@@ -2267,6 +2298,14 @@ export async function createReview(req: any): Promise<PluginResponse> {
   }
   const reviewIssueType = await getReviewIssueTypeConfig()
   await claimTransitionIntent(rvUuid, 'add', creator_uuid)
+  // 初始字段值：按「工作项映射」写入评审阶段/类型/编号/会议时间/轮次（映射未配置或解析失败自动跳过）
+  const initialFieldValues: Record<string, any> = {
+    round_no: 1,
+    phase_code,
+    review_type: reviewType.toUpperCase(),
+    review_number: reviewNumber,
+  }
+  if (meeting_time) initialFieldValues.meeting_time = Number(meeting_time)
   const createdIssue = await createReviewIssue({
     teamUUID: tuidCreate,
     uuid: rvUuid,
@@ -2274,6 +2313,7 @@ export async function createReview(req: any): Promise<PluginResponse> {
     issue_type_uuid: reviewIssueType.uuid,
     title: `${reviewNumber} ${review_title || `${reviewType.toUpperCase()}-${phase_code}`}`,
     assignee_uuid: creator_uuid,
+    initialFieldValues,
   })
   if (!createdIssue.ok) {
     await consumeTransitionIntent(rvUuid)
@@ -4032,6 +4072,15 @@ export async function updateReviewBasicInfo(req: any): Promise<PluginResponse> {
     `会议时间修改为: ${next.meeting_time ? new Date(next.meeting_time).toLocaleString('zh-CN') : '未设置'}`,
   )
 
+  // 字段镜像：会议时间/标题变更写回工作项（尽力模式，失败仅审计）
+  await mirrorFields(
+    req,
+    rid,
+    operator_uuid,
+    { meeting_time: next.meeting_time || '' },
+    typeof review_title === 'string' ? next.review_title : undefined,
+  )
+
   return { body: { ok: true, review: next } }
 }
 
@@ -5578,6 +5627,8 @@ export async function publishResolution(req: any): Promise<PluginResponse> {
   await review.set(rid, cleanForSet({ ...rv, ...stateFields }))
   if (targetState === 'rejected') await releasePhaseGuard({ ...rv, review_uuid: rid })
   await mirrorState(req, rid, targetState, puuid)
+  // 字段镜像：评审结论/条件说明写回工作项（尽力模式，失败仅审计）
+  await mirrorFields(req, rid, puuid, { final_conclusion: fcLabel, condition_notes: cn })
   await writeAudit(rid, puuid, '发布决议', rid, `决议已发布: ${normalizedFc} [${snapshotNumber}]`)
 
   // 通知创建者 + 所有评审人（决议发布后）
@@ -6085,6 +6136,10 @@ export async function transitionReview(req: any): Promise<PluginResponse> {
   )
   await review.set(rid, cleanForSet({ ...rv, ...stateFields }))
   await mirrorState(req, rid, target_state, operator_uuid)
+  if (target_state === 're_reviewing') {
+    // 字段镜像：进入复审轮次 +1 写回工作项（尽力模式）
+    await mirrorFields(req, rid, operator_uuid, { round_no: stateFields.round_no })
+  }
   await writeAudit(
     rid,
     operator_uuid,
@@ -6841,6 +6896,10 @@ export async function confirmRemediation(req: any): Promise<PluginResponse> {
     }),
   )
   await mirrorState(req, rid, targetState, publisher_uuid)
+  if (next_action === 're_review') {
+    // 字段镜像：确认整改进入复审，轮次 +1 写回工作项（尽力模式）
+    await mirrorFields(req, rid, publisher_uuid, { round_no: newRoundNo })
+  }
 
   await writeAudit(
     rid,
@@ -7370,6 +7429,7 @@ export async function applyProfileToReview(req: any): Promise<PluginResponse> {
 // ============================================================
 export const apiGetIpdConfig = withAuthorization('identity', getIpdConfig)
 export const apiSavePluginConfig = withAuthorization('admin', savePluginConfig)
+export const apiGetMappingOptions = withAuthorization('admin', getMappingOptions)
 export const apiCreateReview = withAuthorization('create', createReview)
 export const apiGetReviewDetail = withAuthorization('review-read', getReviewDetail)
 export const apiListReviewsByProject = withAuthorization('project-read', listReviewsByProject)

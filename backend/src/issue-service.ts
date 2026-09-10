@@ -8,20 +8,83 @@
 //
 // ⚠️ 环境待验证点（PoC 清单）：
 // - executeWorkflowViaInternal 的 GraphQL mutation 名称未在目标环境验证
-// - executeWorkflowViaOpenApi 的路径模板未在目标环境验证（OpenAPI v2 凭据需管理员配置）
+// - OpenAPI 通道（FetchAsAdmin 插件身份自动鉴权）与路径模板未在目标环境验证
 // 两者均可通过 base_config 的 issue_transition_transport 覆盖，无需改代码。
 // ============================================================
 import { Logger } from '@ones-op/node-logger'
 import { storage } from '@ones-op/sdk/node'
-import { OPFetch } from '@ones-op/fetch'
+import { FetchAsAdmin, OPFetch } from '@ones-op/fetch'
 
 const baseCfg = storage.entity('ipd_base_config')
 const reviewStore = storage.entity('ipd_review')
 const intentStore = storage.entity('ipd_transition_intent')
 const auditStore = storage.entity('ipd_audit_log')
 
-// 受保护的工作项属性名（与 plugin.yaml TaskEventHandler 的 field 默认配置保持一致）
-export const PROTECTED_FIELD_NAMES = new Set(['会议时间', '评审轮次', '评审结论'])
+// ---------------- 评审字段映射（评审数据 ↔ 工作项自定义字段） ----------------
+// 一版默认映射：管理员在标品按《工作项映射指南》创建同名字段时零配置生效；
+// 字段名不同则在配置页「工作项映射」中修改，存储 key = review_field_map。
+
+export interface ReviewFieldBinding {
+  name: string
+  uuid?: string
+}
+
+export const DEFAULT_REVIEW_FIELD_MAP: Record<string, ReviewFieldBinding> = {
+  meeting_time: { name: '会议时间' },
+  round_no: { name: '评审轮次' },
+  final_conclusion: { name: '评审结论' },
+  phase_code: { name: '评审阶段' },
+  review_type: { name: '评审类型' },
+  review_number: { name: '评审编号' },
+  condition_notes: { name: '决议条件说明' },
+}
+
+// 守卫冻结的三个必配字段；其余映射字段仅写回展示，不拦截手工修改
+export const PROTECTED_FIELD_KEYS = ['meeting_time', 'round_no', 'final_conclusion']
+
+function normalizeFieldBinding(v: any): ReviewFieldBinding | null {
+  if (typeof v === 'string') {
+    const name = v.trim()
+    return name ? { name } : null
+  }
+  if (v && typeof v === 'object') {
+    const name = String(v.name || '').trim()
+    if (!name) return null
+    const uuid = String(v.uuid || '').trim()
+    return uuid ? { name, uuid } : { name }
+  }
+  return null
+}
+
+// 与默认合并，保证新增映射 key 在旧配置下也有默认值
+export async function getReviewFieldMap(): Promise<Record<string, ReviewFieldBinding>> {
+  const merged: Record<string, ReviewFieldBinding> = { ...DEFAULT_REVIEW_FIELD_MAP }
+  const raw = await readCfg('review_field_map')
+  if (!raw) return merged
+  try {
+    const parsed = JSON.parse(raw)
+    if (parsed && typeof parsed === 'object') {
+      for (const [k, v] of Object.entries(parsed)) {
+        const b = normalizeFieldBinding(v)
+        if (b) merged[k] = b
+      }
+    }
+  } catch {
+    /* 配置损坏时回退默认 */
+  }
+  return merged
+}
+
+// 受保护的工作项属性名（守卫按 field_name / field_name_map.zh 名称匹配）
+export async function getProtectedFieldNames(): Promise<Set<string>> {
+  const map = await getReviewFieldMap()
+  const names = new Set<string>()
+  for (const key of PROTECTED_FIELD_KEYS) {
+    const n = map[key]?.name
+    if (n) names.add(n)
+  }
+  return names
+}
 
 // 意图有效期：插件发起流转→工作项落库 的窗口期
 export const INTENT_TTL_MS = 60 * 1000
@@ -68,6 +131,110 @@ export async function getTransitionTransportConfig(): Promise<any> {
     return JSON.parse(raw)
   } catch {
     return null
+  }
+}
+
+// ---------------- OpenAPI 团队级列表（配置页映射选择器数据源） ----------------
+// 官方接口：GET /openapi/v2/project/issueTypes|issueStatuses|issueFields?teamID=&limit=&cursor=
+// 鉴权：FetchAsAdmin 以插件身份经平台内置 Oauth2AdminToken 能力自动获取管理员 token，
+// 无需任何配置；个别环境内置能力不可用时，可在 transport 配置显式指定 openapi.host+token
+// （逃生门，走手动 Bearer），地址默认取运行时 onesEnv.openapiServiceAddress。
+
+async function getOpenApiOverrideCredential(): Promise<{ host: string; token: string }> {
+  const cfg = (await getTransitionTransportConfig()) || {}
+  const openapi = (cfg as any)?.openapi || {}
+  return {
+    host: String(openapi.host || '').replace(/\/+$/, ''),
+    token: String(openapi.token || ''),
+  }
+}
+
+async function openApiFetch(
+  path: string,
+  init: { method: string; data?: any },
+  teamUUID: string,
+): Promise<any> {
+  const { host, token } = await getOpenApiOverrideCredential()
+  if (host && token) {
+    return OPFetch(`${host}${path}`, {
+      method: init.method,
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      ...(init.data !== undefined ? { data: init.data } : {}),
+    }) as any
+  }
+  // 验证过的调用形态（BI 仪表盘项目同环境 PoC）：params.teamID 让 SDK 按 team 级换取
+  // admin token；前提是 plugin.yaml 顶层声明 oauth.type=[admin] + 所需 scope
+  return FetchAsAdmin(path, {
+    method: init.method,
+    params: { teamID: teamUUID },
+    headers: { 'Content-Type': 'application/json' },
+    ...(init.data !== undefined ? { data: init.data } : {}),
+  }) as any
+}
+
+async function fetchOpenApiList(teamUUID: string, resource: string): Promise<any[]> {
+  const out: any[] = []
+  let cursor = ''
+  // 防御上限 20 页 × 500 条，覆盖团队级类型/状态/字段总量
+  // 注：插件沙箱无 URLSearchParams 全局，query 手工拼接；teamID 由 openApiFetch 的 params 携带
+  for (let page = 0; page < 20; page++) {
+    const qs = `limit=500${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`
+    const res: any = await withTimeout(
+      openApiFetch(`/openapi/v2/project/${resource}?${qs}`, { method: 'GET' }, teamUUID),
+      8000,
+    )
+    // 兼容两种返回包装：OPFetch({body}) / FetchAsAdmin(axios {data})；
+    // 官方响应形如 { data: { list: [...], pageInfo }, result }
+    const raw = res?.body ?? res?.data ?? res
+    const data = raw?.data || raw
+    const list = Array.isArray(data?.list) ? data.list : []
+    out.push(...list)
+    const pi = data?.pageInfo
+    if (!pi?.hasNextPage || !pi?.endCursor) break
+    cursor = String(pi.endCursor)
+  }
+  return out
+}
+
+export interface MappingOptions {
+  source: 'openapi'
+  issueTypes: { id: string; name: string }[]
+  issueStatuses: { id: string; name: string; category: string }[]
+  issueFields: { id: string; name: string; typeLabel: string; options: string[] }[]
+}
+
+export async function loadMappingOptionsViaOpenApi(teamUUID: string): Promise<MappingOptions> {
+  const [types, statuses, fields] = await Promise.all([
+    fetchOpenApiList(teamUUID, 'issueTypes'),
+    fetchOpenApiList(teamUUID, 'issueStatuses'),
+    fetchOpenApiList(teamUUID, 'issueFields'),
+  ])
+  const optionLabel = (o: any): string => {
+    const v = o?.value
+    if (v == null) return String(o?.id || '')
+    if (typeof v !== 'object') return String(v)
+    return String(v.value ?? v.label ?? v.name ?? o?.id ?? '')
+  }
+  return {
+    source: 'openapi',
+    issueTypes: types
+      .map((t: any) => ({ id: String(t?.id || ''), name: String(t?.name || '') }))
+      .filter((t) => t.id && t.name),
+    issueStatuses: statuses
+      .map((s: any) => ({
+        id: String(s?.id || ''),
+        name: String(s?.name || ''),
+        category: String(s?.category || ''),
+      }))
+      .filter((s) => s.id && s.name),
+    issueFields: fields
+      .map((f: any) => ({
+        id: String(f?.id || ''),
+        name: String(f?.name || ''),
+        typeLabel: String(f?.typeLabel || ''),
+        options: Array.isArray(f?.options) ? f.options.map(optionLabel).filter(Boolean) : [],
+      }))
+      .filter((f) => f.id && f.name),
   }
 }
 
@@ -170,6 +337,8 @@ export interface CreateReviewIssueOpts {
   issue_type_uuid: string
   title: string
   assignee_uuid?: string
+  // 初始字段值（review_field_map 的 key → 值），按映射写入工作项自定义字段
+  initialFieldValues?: Record<string, any>
 }
 
 export interface CreateReviewIssueResult {
@@ -189,6 +358,22 @@ export async function createReviewIssue(
       uuid: '',
       number: '',
       error: '未配置评审单工作项类型，请先在「IPD评审」模板配置中选择',
+    }
+  }
+  // 按字段映射解析初始字段值（有 uuid 用 uuid，无则按名称走 OpenAPI 解析，失败审计跳过）
+  let extraFieldValues: { field_uuid: string; value: any }[] = []
+  if (opts.initialFieldValues && Object.keys(opts.initialFieldValues).length > 0) {
+    const resolved = await resolveFieldValues(teamUUID, opts.initialFieldValues)
+    extraFieldValues = resolved.fieldValues
+    if (resolved.unresolved.length > 0) {
+      await auditSvc(
+        uuid,
+        '',
+        '创建字段未写入',
+        resolved.unresolved.join(','),
+        `以下映射字段未找到同名工作项自定义字段，初始值未写入（请检查「工作项映射」配置）: ${resolved.unresolved.join('、')}`,
+        'denied',
+      )
     }
   }
   const internalPaths = [
@@ -212,6 +397,7 @@ export async function createReviewIssue(
                   { field_uuid: 'field006', value: project_uuid },
                   { field_uuid: 'field007', value: issue_type_uuid },
                   ...(assignee_uuid ? [{ field_uuid: 'field004', value: assignee_uuid }] : []),
+                  ...extraFieldValues,
                 ],
               },
             ],
@@ -287,7 +473,7 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   ])
 }
 
-// OpenAPI v2 工作流执行（需管理员在配置页提供组织凭据 token；路径模板可覆盖）
+// OpenAPI v2 工作流执行（FetchAsAdmin 插件身份鉴权；transport 配置可覆盖凭据/路径/方法/请求体）
 async function executeWorkflowViaOpenApi(
   teamUUID: string,
   issueUuid: string,
@@ -295,22 +481,21 @@ async function executeWorkflowViaOpenApi(
 ): Promise<{ ok: boolean; error?: string }> {
   const cfg = (await getTransitionTransportConfig()) || {}
   const openapi = cfg.openapi || {}
-  const token = openapi.token || (await readCfg('openapi_token'))
-  if (!token) return { ok: false, error: 'openapi_token 未配置' }
-  const host = openapi.host || (await readCfg('openapi_host'))
-  if (!host) return { ok: false, error: 'openapi_host 未配置' }
   const pathTpl =
     openapi.path_template || '/openapi/v2/project/teams/{team}/issues/{issue}/workflow'
   const path = pathTpl.replace('{team}', teamUUID).replace('{issue}', issueUuid)
   try {
     const res = await withTimeout(
-      OPFetch(`${host}${path}`, {
-        method: openapi.method || 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        data: openapi.body_template
-          ? JSON.parse(JSON.stringify(openapi.body_template).replace('{status_uuid}', statusUuid))
-          : { status_uuid: statusUuid },
-      }) as any,
+      openApiFetch(
+        path,
+        {
+          method: openapi.method || 'POST',
+          data: openapi.body_template
+            ? JSON.parse(JSON.stringify(openapi.body_template).replace('{status_uuid}', statusUuid))
+            : { status_uuid: statusUuid },
+        },
+        teamUUID,
+      ),
       8000,
     )
     const resAny = res as any
@@ -425,5 +610,147 @@ export async function pushStateMirror(opts: PushMirrorOpts): Promise<PushMirrorR
     await consumeTransitionIntent(taskUuid)
     Logger.error(`[IPD] state mirror push error for ${taskUuid}: ${e?.message || e}`)
     return { synced: false, mode: 'failed', error: e?.message || String(e) }
+  }
+}
+
+// ---------------- 字段镜像推送（评审数据 → 工作项自定义字段） ----------------
+
+// 把 {映射key: 值} 解析为 add3/update3 的 field_values：
+// 绑定里有 uuid 直接用；缺 uuid 时按名称走 OpenAPI issueFields 列表精确匹配（需凭据），
+// 仍匹配不到的字段进入 unresolved（调用方审计提示，不阻塞业务）。
+async function resolveFieldValues(
+  teamUUID: string,
+  values: Record<string, any>,
+): Promise<{ fieldValues: { field_uuid: string; value: any }[]; unresolved: string[] }> {
+  const map = await getReviewFieldMap()
+  const fieldValues: { field_uuid: string; value: any }[] = []
+  const unresolved: string[] = []
+  const needLookup: { name: string; value: any }[] = []
+  for (const [key, value] of Object.entries(values)) {
+    if (value === undefined || value === null || value === '') continue
+    const binding = map[key]
+    if (!binding) continue
+    if (binding.uuid) {
+      fieldValues.push({ field_uuid: binding.uuid, value })
+    } else {
+      needLookup.push({ name: binding.name, value })
+    }
+  }
+  if (needLookup.length > 0) {
+    try {
+      const fields = await fetchOpenApiList(teamUUID, 'issueFields')
+      const byName = new Map<string, string>()
+      for (const f of fields) {
+        const id = String(f?.id || '')
+        const name = String(f?.name || '')
+        if (id && name && !byName.has(name)) byName.set(name, id)
+      }
+      for (const item of needLookup) {
+        const uuid = byName.get(item.name)
+        if (uuid) fieldValues.push({ field_uuid: uuid, value: item.value })
+        else unresolved.push(item.name)
+      }
+    } catch {
+      for (const item of needLookup) unresolved.push(item.name)
+    }
+  }
+  return { fieldValues, unresolved }
+}
+
+// 内部 tasks/update3 更新工作项字段（请求形态与 add3 同构，端点待环境验证；
+// 可用 base_config.issue_transition_transport.field_update.internal_path 覆盖）
+async function updateIssueFieldsViaInternal(
+  teamUUID: string,
+  taskUuid: string,
+  fieldValues: { field_uuid: string; value: any }[],
+): Promise<{ ok: boolean; error?: string }> {
+  const cfg = (await getTransitionTransportConfig()) || {}
+  const path =
+    (cfg as any)?.field_update?.internal_path ||
+    `/project/api/project/team/${teamUUID}/tasks/update3`
+  try {
+    const res: any = await withTimeout(
+      OPFetch(path, {
+        method: 'POST',
+        teamUUID,
+        headers: { 'Content-Type': 'application/json' },
+        data: { tasks: [{ uuid: taskUuid, field_values: fieldValues }] },
+      }) as any,
+      8000,
+    )
+    const body = (res as any)?.body ?? res
+    if (body && (body.errcode || body.error)) {
+      return { ok: false, error: JSON.stringify(body).slice(0, 200) }
+    }
+    return { ok: true }
+  } catch (e: any) {
+    return { ok: false, error: e?.message || String(e) }
+  }
+}
+
+export interface PushFieldMirrorOpts {
+  teamUUID: string
+  taskUuid: string
+  actorUuid?: string
+  // review_field_map 的 key → 新值（空值自动跳过）
+  values: Record<string, any>
+  // 标题（工作项原生字段 field001）一并更新
+  title?: string
+}
+
+export interface PushFieldMirrorResult {
+  synced: boolean
+  skipped?: string[]
+  error?: string
+}
+
+// 评审数据变更后写回工作项（尽力模式：失败仅审计，不阻塞业务）。
+// 写前登记流转意图，避免被自身 update 守卫拦截（与状态镜像同款机制）。
+export async function pushFieldMirror(opts: PushFieldMirrorOpts): Promise<PushFieldMirrorResult> {
+  const { teamUUID, taskUuid, actorUuid, values, title } = opts
+  try {
+    const { fieldValues, unresolved } = await resolveFieldValues(teamUUID, values)
+    if (title) fieldValues.unshift({ field_uuid: 'field001', value: title })
+    if (unresolved.length > 0) {
+      await auditSvc(
+        taskUuid,
+        actorUuid || '',
+        '字段镜像未同步',
+        unresolved.join(','),
+        `以下字段名未匹配到工作项自定义字段，请检查「工作项映射」配置: ${unresolved.join('、')}`,
+        'denied',
+      )
+    }
+    if (fieldValues.length === 0) return { synced: false, skipped: unresolved }
+    await claimTransitionIntent(taskUuid, 'field_update', actorUuid || '')
+    const res = await updateIssueFieldsViaInternal(teamUUID, taskUuid, fieldValues)
+    await consumeTransitionIntent(taskUuid)
+    const touched = Object.entries(values)
+      .filter(([, v]) => v !== undefined && v !== null && v !== '')
+      .map(([k]) => k)
+    if (res.ok) {
+      await auditSvc(
+        taskUuid,
+        actorUuid || '',
+        '字段镜像同步',
+        touched.join(','),
+        `工作项字段已更新: ${touched.join('、') || '标题'}`,
+      )
+      return { synced: true }
+    }
+    await auditSvc(
+      taskUuid,
+      actorUuid || '',
+      '字段镜像失败',
+      touched.join(','),
+      `工作项字段更新失败: ${res.error || ''}`.slice(0, 300),
+      'denied',
+    )
+    Logger.error(`[IPD] field mirror push failed for ${taskUuid}: ${res.error}`)
+    return { synced: false, error: res.error }
+  } catch (e: any) {
+    await consumeTransitionIntent(taskUuid)
+    Logger.error(`[IPD] field mirror push error for ${taskUuid}: ${e?.message || e}`)
+    return { synced: false, error: e?.message || String(e) }
   }
 }
