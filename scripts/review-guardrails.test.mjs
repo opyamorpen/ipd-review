@@ -43,9 +43,9 @@ const startHandler = backend.slice(
 )
 assert.match(
   startHandler,
-  /findPhaseReviewConflict\(projectIdentity\.lookupIds, rv\.phase_code, reviewType, rid\)/,
+  /findPhaseReviewConflict\(\s*projectIdentity\.lookupIds,\s*rv\.phase_code,\s*reviewType,\s*rid,?\s*\)/,
 )
-assert.match(startHandler, /claimPhaseGuard\(projectIdentity\.canonicalUuid/)
+assert.match(startHandler, /claimPhaseGuard\(\s*projectIdentity\.canonicalUuid/)
 assert.match(startHandler, /getPhaseDependencySnapshot/)
 assert.match(startHandler, /getClosedPassingPhases/)
 assert.match(startHandler, /REVIEW_PHASE_GUARD_LOST/)
@@ -131,10 +131,12 @@ assert.match(projectIssueTypes, /projectIssueTypes/)
 assert.equal(projectIssueTypes.includes('issueTypes(orderBy'), false)
 
 const workspaceCreateIssueStart = workspace.indexOf('async function handleCreateIssue')
-const workspaceCreateIssue = workspace.slice(
-  workspaceCreateIssueStart,
-  workspace.indexOf('\n return (', workspaceCreateIssueStart),
-)
+// 终点标记对缩进宽容：prettier 可能把 1 空格缩进规范成 2 空格
+const workspaceCreateIssueEnd =
+  workspace.indexOf('\n return (', workspaceCreateIssueStart) !== -1
+    ? workspace.indexOf('\n return (', workspaceCreateIssueStart)
+    : workspace.indexOf('\n  return (', workspaceCreateIssueStart)
+const workspaceCreateIssue = workspace.slice(workspaceCreateIssueStart, workspaceCreateIssueEnd)
 assert.ok(
   workspaceCreateIssue.indexOf('resolveCreationIssueType()') <
     workspaceCreateIssue.indexOf('/tasks/add3'),
@@ -194,7 +196,7 @@ assert.match(issueService, /export async function hasLiveIntent/)
 assert.match(taskHandler, /hasLiveIntent/)
 assert.match(taskHandler, /consumeTransitionIntent/)
 // createReview 必须以工作项为主键：先写 add 意图再创建工作项，失败释放阶段锁
-assert.match(backend, /claimTransitionIntent\(rvUuid, 'add'/)
+assert.match(backend, /claimTransitionIntent\(\s*rvUuid,\s*'add'/)
 assert.match(backend, /createReviewIssue\(/)
 assert.match(backend, /issue_uuid: rvUuid/)
 // 状态机变更后必须推送工作项状态镜像（不阻塞业务，失败仅审计）

@@ -76,7 +76,7 @@ assert.deepEqual(
 )
 
 const actualPolicies = Object.fromEntries(
-  [...backend.matchAll(/export const (api\w+) = withAuthorization\('([^']+)'/g)].map((match) => [
+  [...backend.matchAll(/export const (api\w+) = withAuthorization\(\s*'([^']+)'/g)].map((match) => [
     match[1],
     match[2],
   ]),
